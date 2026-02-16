@@ -3,6 +3,13 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --correct-bg: #DCFCE7;
+  --correct-border: #86EFAC;
+  --correct-text: #14532D;
+  --ref-bg: #DBEAFE;
+  --ref-border: #93C5FD;
+  --ref-text: #1E3A8A;
+  --keyboard-border: rgba(17, 24, 39, 0.35);
 }
 
 @theme inline {
