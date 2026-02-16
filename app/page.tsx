@@ -182,6 +182,8 @@ const NOTE_LENGTHS: Record<NoteLengthKey, number> = {
 const KEYBOARD_MIN_MIDI = 60; // C4
 const KEYBOARD_MAX_MIDI = 84; // C6
 const WHITE_SEMITONES = new Set([0, 2, 4, 5, 7, 9, 11]);
+const WHITE_KEY_WIDTH = 48;
+const BLACK_KEY_WIDTH = Math.round(WHITE_KEY_WIDTH * 0.62);
 
 function pickRandom<T>(items: T[]): T {
   return items[Math.floor(Math.random() * items.length)];
@@ -501,10 +503,10 @@ export default function Home() {
 
   const buttonClass = (intervalId: string): string => {
     const base =
-      "rounded-md border border-black/20 px-4 py-2 font-medium transition disabled:cursor-not-allowed disabled:opacity-100";
+      "rounded-md border border-[var(--border)] px-4 py-2 font-medium transition disabled:cursor-not-allowed disabled:opacity-100";
 
     if (!answered || !currentRound) {
-      return `${base} hover:bg-black/5`;
+      return `${base} hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]`;
     }
 
     if (intervalId === currentRound.answerId) {
@@ -512,28 +514,32 @@ export default function Home() {
     }
 
     if (submittedChoiceId === intervalId) {
-      return `${base} border-red-600 bg-red-100 text-red-900`;
+      return `${base} border-[var(--incorrect)] bg-[var(--incorrect)] text-[var(--text)]`;
     }
 
-    return `${base} bg-white text-black`;
+    return `${base} bg-[var(--card)] text-[var(--text)]`;
   };
 
+  const keyboardWidth = keyboardWhiteKeys.length * WHITE_KEY_WIDTH;
+
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 px-6 py-10">
+    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 px-6 py-10 text-[var(--text)]">
       <h1 className="text-center text-3xl font-bold">{t.title}</h1>
 
-      <section className="rounded-xl border border-black/10 p-6 shadow-sm">
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
         <h2 className="text-xl font-semibold">{t.settings}</h2>
 
         <div className="mt-4 grid gap-6 lg:grid-cols-2">
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-black/65">{t.language}</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.language}</h3>
             <div className="mt-2 flex gap-2">
               <button
                 type="button"
                 onClick={() => setLanguage("en")}
                 className={`rounded-md border px-3 py-2 text-sm font-medium ${
-                  language === "en" ? "border-black bg-black text-white" : "border-black/20 hover:bg-black/5"
+                  language === "en"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
                 }`}
               >
                 EN
@@ -542,7 +548,9 @@ export default function Home() {
                 type="button"
                 onClick={() => setLanguage("ja")}
                 className={`rounded-md border px-3 py-2 text-sm font-medium ${
-                  language === "ja" ? "border-black bg-black text-white" : "border-black/20 hover:bg-black/5"
+                  language === "ja"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
                 }`}
               >
                 JA
@@ -551,26 +559,26 @@ export default function Home() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-black/65">{t.presets}</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.presets}</h3>
             <div className="mt-2 flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => applyPreset("beginner")}
-                className="rounded-md border border-black/20 px-3 py-2 text-sm font-medium hover:bg-black/5"
+                className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
               >
                 {t.beginner}
               </button>
               <button
                 type="button"
                 onClick={() => applyPreset("basic")}
-                className="rounded-md border border-black/20 px-3 py-2 text-sm font-medium hover:bg-black/5"
+                className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
               >
                 {t.basic}
               </button>
               <button
                 type="button"
                 onClick={() => applyPreset("jazzIntro")}
-                className="rounded-md border border-black/20 px-3 py-2 text-sm font-medium hover:bg-black/5"
+                className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
               >
                 {t.jazzIntro}
               </button>
@@ -578,7 +586,7 @@ export default function Home() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-black/65">{t.maxRange}</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.maxRange}</h3>
             <div className="mt-2 flex flex-wrap gap-4 text-sm">
               <label className="flex items-center gap-2">
                 <input
@@ -599,17 +607,19 @@ export default function Home() {
                 {t.twoOctaves}
               </label>
             </div>
-            <p className="mt-2 text-xs text-black/60">{t.rangeHelp}</p>
+            <p className="mt-2 text-xs text-[var(--muted)]">{t.rangeHelp}</p>
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-black/65">{t.noteLength}</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.noteLength}</h3>
             <div className="mt-2 flex gap-2">
               <button
                 type="button"
                 onClick={() => setNoteLength("short")}
                 className={`rounded-md border px-3 py-2 text-sm font-medium ${
-                  noteLength === "short" ? "border-black bg-black text-white" : "border-black/20 hover:bg-black/5"
+                  noteLength === "short"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
                 }`}
               >
                 {t.short}
@@ -618,7 +628,9 @@ export default function Home() {
                 type="button"
                 onClick={() => setNoteLength("medium")}
                 className={`rounded-md border px-3 py-2 text-sm font-medium ${
-                  noteLength === "medium" ? "border-black bg-black text-white" : "border-black/20 hover:bg-black/5"
+                  noteLength === "medium"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
                 }`}
               >
                 {t.medium}
@@ -627,7 +639,9 @@ export default function Home() {
                 type="button"
                 onClick={() => setNoteLength("long")}
                 className={`rounded-md border px-3 py-2 text-sm font-medium ${
-                  noteLength === "long" ? "border-black bg-black text-white" : "border-black/20 hover:bg-black/5"
+                  noteLength === "long"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
                 }`}
               >
                 {t.long}
@@ -636,7 +650,7 @@ export default function Home() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-black/65">{t.mode}</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.mode}</h3>
             <div className="mt-2 flex gap-4 text-sm">
               <label className="flex items-center gap-2">
                 <input
@@ -657,11 +671,11 @@ export default function Home() {
                 {t.harmony}
               </label>
             </div>
-            <p className="mt-2 text-xs text-black/60">{t.modeHelp}</p>
+            <p className="mt-2 text-xs text-[var(--muted)]">{t.modeHelp}</p>
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-black/65">{t.direction}</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.direction}</h3>
             <div className="mt-2 flex flex-wrap gap-4 text-sm">
               <label className="flex items-center gap-2">
                 <input
@@ -698,12 +712,12 @@ export default function Home() {
         </div>
 
         <div className="mt-6">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-black/65">{t.intervalPool}</h3>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.intervalPool}</h3>
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
             {INTERVALS.map((interval) => (
               <label
                 key={interval.id}
-                className="flex items-center gap-2 rounded-md border border-black/15 px-3 py-2 text-sm"
+                className="flex items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 text-sm"
               >
                 <input
                   type="checkbox"
@@ -717,27 +731,27 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-black/10 p-6 shadow-sm">
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
         <h2 className="text-xl font-semibold">{t.practice}</h2>
-        <p className="mt-2 text-sm text-black/70">{t.practiceHelp}</p>
+        <p className="mt-2 text-sm text-[var(--muted)]">{t.practiceHelp}</p>
 
         <button
           type="button"
           onClick={playInterval}
           disabled={questionPool.length === 0}
-          className="mt-5 rounded-md bg-black px-5 py-3 font-medium text-white transition hover:bg-black/80 disabled:cursor-not-allowed disabled:bg-black/30"
+          className="mt-5 rounded-md bg-[var(--accent)] px-5 py-3 font-medium text-[var(--bg)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {t.play}
         </button>
 
         {mode === "melodic" && currentRound && questionPool.length > 0 && (
-          <p className="mt-2 text-xs text-black/60">
+          <p className="mt-2 text-xs text-[var(--muted)]">
             {t.currentDirection}: {directionSetting === "random" ? t.random : t[directionSetting]}
           </p>
         )}
 
         {questionPool.length === 0 ? (
-          <p className="mt-5 rounded-md bg-black/5 p-3 text-sm">{t.selectOne}</p>
+          <p className="mt-5 rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3 text-sm">{t.selectOne}</p>
         ) : (
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {questionPool.map((interval) => (
@@ -757,14 +771,18 @@ export default function Home() {
         <div className="mt-5 min-h-7 text-sm font-medium">{feedback}</div>
 
         {answered && currentRound && (
-          <section className="mt-4 rounded-lg border border-black/10 p-4">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-black/65">{t.keyboard}</h3>
-            <p className="mt-1 text-xs text-black/60">{t.keyboardHelp}</p>
+          <section className="mt-4 rounded-lg border border-[var(--border)] p-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.keyboard}</h3>
+            <p className="mt-1 text-xs text-[var(--muted)]">{t.keyboardHelp}</p>
 
-            <div className="mt-4 w-full">
+            <div className="mt-4 w-full overflow-x-auto">
               <div
-                className="relative h-[220px] w-full overflow-hidden rounded-md bg-zinc-100/30"
-                style={{ border: "1px solid var(--keyboard-border)" }}
+                className="relative h-[220px] overflow-hidden rounded-md bg-[color-mix(in_oklab,var(--text)_3%,transparent)]"
+                style={{
+                  width: `${keyboardWidth}px`,
+                  minWidth: `${keyboardWidth}px`,
+                  border: "1px solid var(--keyboard-border)",
+                }}
               >
                 <div className="absolute inset-0 flex">
                   {keyboardWhiteKeys.map((midi, index) => {
@@ -789,6 +807,8 @@ export default function Home() {
                         onClick={() => void playSingleNote(midi)}
                         className={`relative h-full flex-1 ${keyStateClass}`}
                         style={{
+                          width: `${WHITE_KEY_WIDTH}px`,
+                          minWidth: `${WHITE_KEY_WIDTH}px`,
                           boxShadow:
                             index < keyboardWhiteKeys.length - 1
                               ? "inset -1px 0 0 var(--keyboard-border)"
@@ -828,8 +848,8 @@ export default function Home() {
                       onClick={() => void playSingleNote(key.midi)}
                       className={`absolute top-0 z-10 h-[58%] -translate-x-1/2 rounded-b ${keyStateClass}`}
                       style={{
-                        left: `${(key.whiteCountBefore / keyboardWhiteKeys.length) * 100}%`,
-                        width: `${(100 / keyboardWhiteKeys.length) * 0.62}%`,
+                        left: `${key.whiteCountBefore * WHITE_KEY_WIDTH}px`,
+                        width: `${BLACK_KEY_WIDTH}px`,
                         boxShadow:
                           "0 0 0 1px var(--keyboard-border), inset 0 -1px 0 rgba(0, 0, 0, 0.15)",
                       }}
@@ -848,8 +868,8 @@ export default function Home() {
                   aria-hidden="true"
                   className="pointer-events-none absolute top-0 z-10 h-[58%] -translate-x-1/2 rounded-b bg-black"
                   style={{
-                    left: "100%",
-                    width: `${(100 / keyboardWhiteKeys.length) * 0.62}%`,
+                    left: `${keyboardWidth}px`,
+                    width: `${BLACK_KEY_WIDTH}px`,
                     boxShadow:
                       "0 0 0 1px var(--keyboard-border), inset 0 -1px 0 rgba(0, 0, 0, 0.15)",
                   }}
@@ -863,26 +883,26 @@ export default function Home() {
           <button
             type="button"
             onClick={nextRound}
-            className="mt-4 rounded-md border border-black px-4 py-2 text-sm font-semibold transition hover:bg-black hover:text-white"
+            className="mt-4 rounded-md border border-[var(--accent)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--accent)] hover:text-[var(--bg)]"
           >
             {t.nextInterval}
           </button>
         )}
       </section>
 
-      <section className="rounded-xl border border-black/10 p-6 shadow-sm">
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
         <h2 className="text-xl font-semibold">{t.stats}</h2>
         <div className="mt-4 grid grid-cols-3 gap-3 text-center">
-          <div className="rounded-md bg-black/5 p-3">
-            <div className="text-xs uppercase tracking-wide text-black/60">{t.total}</div>
+          <div className="rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3">
+            <div className="text-xs uppercase tracking-wide text-[var(--muted)]">{t.total}</div>
             <div className="text-2xl font-bold">{total}</div>
           </div>
-          <div className="rounded-md bg-black/5 p-3">
-            <div className="text-xs uppercase tracking-wide text-black/60">{t.correct}</div>
+          <div className="rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3">
+            <div className="text-xs uppercase tracking-wide text-[var(--muted)]">{t.correct}</div>
             <div className="text-2xl font-bold">{correct}</div>
           </div>
-          <div className="rounded-md bg-black/5 p-3">
-            <div className="text-xs uppercase tracking-wide text-black/60">{t.accuracy}</div>
+          <div className="rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3">
+            <div className="text-xs uppercase tracking-wide text-[var(--muted)]">{t.accuracy}</div>
             <div className="text-2xl font-bold">{accuracy}%</div>
           </div>
         </div>
