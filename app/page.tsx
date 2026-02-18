@@ -63,6 +63,8 @@ type UiText = {
   octaveLabel: string;
   keyboard: string;
   keyboardHelp: string;
+  intervalBreakdown: string;
+  resetStats: string;
 };
 
 const I18N: Record<Language, UiText> = {
@@ -108,6 +110,8 @@ const I18N: Record<Language, UiText> = {
     octaveLabel: "Octave",
     keyboard: "Keyboard",
     keyboardHelp: "Tap keys to verify the interval.",
+    intervalBreakdown: "Interval Breakdown",
+    resetStats: "Reset Stats",
   },
   ja: {
     title: "音程イヤートレーナー",
@@ -151,6 +155,8 @@ const I18N: Record<Language, UiText> = {
     octaveLabel: "オクターブ",
     keyboard: "キーボード",
     keyboardHelp: "鍵盤をタップして音程を確認できます。",
+    intervalBreakdown: "Interval Breakdown",
+    resetStats: "統計をリセット",
   },
 };
 
@@ -186,6 +192,12 @@ const KEYBOARD_MAX_MIDI = 84; // C6
 const WHITE_SEMITONES = new Set([0, 2, 4, 5, 7, 9, 11]);
 const WHITE_KEY_WIDTH = 48;
 const BLACK_KEY_WIDTH = Math.round(WHITE_KEY_WIDTH * 0.62);
+
+function createInitialIntervalStats(): Record<string, { asked: number; answered: number; correct: number }> {
+  return Object.fromEntries(
+    INTERVALS.map((interval) => [interval.id, { asked: 0, answered: 0, correct: 0 }]),
+  ) as Record<string, { asked: number; answered: number; correct: number }>;
+}
 
 function pickRandom<T>(items: T[]): T {
   return items[Math.floor(Math.random() * items.length)];
@@ -272,6 +284,9 @@ export default function Home() {
   const [submittedChoiceId, setSubmittedChoiceId] = useState<string | null>(null);
   const [total, setTotal] = useState<number>(0);
   const [correct, setCorrect] = useState<number>(0);
+  const [intervalStats, setIntervalStats] = useState<Record<string, { asked: number; answered: number; correct: number }>>(
+    createInitialIntervalStats,
+  );
 
   const t = I18N[language];
 
@@ -379,6 +394,14 @@ export default function Home() {
       };
 
       setCurrentRound(round);
+      setIntervalStats((prev) => ({
+        ...prev,
+        [nextAnswer.id]: {
+          asked: (prev[nextAnswer.id]?.asked ?? 0) + 1,
+          answered: prev[nextAnswer.id]?.answered ?? 0,
+          correct: prev[nextAnswer.id]?.correct ?? 0,
+        },
+      }));
       setFeedback("");
       setAnswered(false);
       setSubmittedChoiceId(null);
@@ -450,6 +473,10 @@ export default function Home() {
   };
 
   const checkAnswer = (selected: Interval) => {
+    if (answered) {
+      return;
+    }
+
     const round = getRound();
     if (!round) {
       return;
@@ -460,9 +487,25 @@ export default function Home() {
 
     setSubmittedChoiceId(selected.id);
     setTotal((prev) => prev + 1);
+    setIntervalStats((prev) => ({
+      ...prev,
+      [round.answerId]: {
+        asked: prev[round.answerId]?.asked ?? 0,
+        answered: (prev[round.answerId]?.answered ?? 0) + 1,
+        correct: prev[round.answerId]?.correct ?? 0,
+      },
+    }));
 
     if (isCorrect) {
       setCorrect((prev) => prev + 1);
+      setIntervalStats((prev) => ({
+        ...prev,
+        [round.answerId]: {
+          asked: prev[round.answerId]?.asked ?? 0,
+          answered: prev[round.answerId]?.answered ?? 0,
+          correct: (prev[round.answerId]?.correct ?? 0) + 1,
+        },
+      }));
       setFeedback(t.correctFeedback);
     } else {
       setFeedback(`${t.correctAnswer} ${answerLabel}`);
@@ -523,6 +566,28 @@ export default function Home() {
   };
 
   const keyboardWidth = keyboardWhiteKeys.length * WHITE_KEY_WIDTH;
+
+  const breakdownCardClass = (answeredCount: number, accuracyValue: number): string => {
+    if (answeredCount === 0) {
+      return "border-[var(--border)] bg-[color-mix(in_oklab,var(--text)_6%,transparent)] text-[var(--text)]";
+    }
+
+    if (accuracyValue >= 80) {
+      return "border-[var(--correct-border)] bg-[var(--correct-bg)] text-[var(--correct-text)]";
+    }
+
+    if (accuracyValue >= 50) {
+      return "border-[var(--warning-border)] bg-[var(--warning-bg)] text-[var(--warning-text)]";
+    }
+
+    return "border-[var(--incorrect)] bg-[var(--incorrect)] text-[var(--text)]";
+  };
+
+  const resetStats = () => {
+    setTotal(0);
+    setCorrect(0);
+    setIntervalStats(createInitialIntervalStats());
+  };
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 px-6 py-10 text-[var(--text)]">
@@ -907,6 +972,43 @@ export default function Home() {
             <div className="text-xs uppercase tracking-wide text-[var(--muted)]">{t.accuracy}</div>
             <div className="text-2xl font-bold">{accuracy}%</div>
           </div>
+        </div>
+
+        <div className="mt-6 flex items-center justify-between gap-3">
+          <h3 className="text-base font-semibold">{t.intervalBreakdown}</h3>
+          <button
+            type="button"
+            onClick={resetStats}
+            className="rounded-md border border-[var(--border)] px-3 py-2 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+          >
+            {t.resetStats}
+          </button>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+          {INTERVALS.map((interval) => {
+            const stat = intervalStats[interval.id] ?? { asked: 0, answered: 0, correct: 0 };
+            const intervalAccuracy = stat.answered > 0 ? (stat.correct / stat.answered) * 100 : 0;
+            const accuracyLabel = stat.answered > 0 ? `${intervalAccuracy.toFixed(1)}%` : "—";
+
+            return (
+              <div
+                key={interval.id}
+                className={`rounded-md border p-3 ${breakdownCardClass(stat.answered, intervalAccuracy)}`}
+              >
+                <div className="text-sm font-semibold">{intervalDisplayLabel(interval.id, language)}</div>
+                <div className="mt-2 text-xs opacity-80">
+                  {t.total}: {stat.asked}
+                </div>
+                <div className="text-xs opacity-80">
+                  {t.correct}: {stat.correct}
+                </div>
+                <div className="mt-1 text-sm font-semibold">
+                  {t.accuracy}: {accuracyLabel}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
     </main>

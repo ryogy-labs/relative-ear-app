@@ -9,6 +9,9 @@
   --accent: #111111;
   --correct: #DCFCE7;
   --incorrect: #FEE2E2;
+  --warning-bg: #FEF3C7;
+  --warning-border: #FCD34D;
+  --warning-text: #78350F;
 
   --background: var(--bg);
   --foreground: var(--text);
@@ -38,6 +41,9 @@
     --accent: #e5e7eb;
     --correct: #14532D;
     --incorrect: #7f1d1d;
+    --warning-bg: #422006;
+    --warning-border: #D97706;
+    --warning-text: #FDE68A;
 
     --background: var(--bg);
     --foreground: var(--text);
