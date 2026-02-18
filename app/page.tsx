@@ -71,17 +71,18 @@ const I18N: Record<Language, UiText> = {
     settings: "Settings",
     language: "Language",
     presets: "Presets",
-    beginner: "Beginner",
-    basic: "Basic",
-    jazzIntro: "Jazz Intro",
+    beginner: "Easy",
+    basic: "Normal",
+    jazzIntro: "Hard",
     maxRange: "Max interval range",
     oneOctave: "1 octave",
     twoOctaves: "2 octaves",
-    rangeHelp: "Range controls only the maximum semitone distance between notes.",
+    rangeHelp: "Choose the maximum distance between the two notes.",
     mode: "Mode",
     melodic: "Melodic",
     harmony: "Harmony",
-    modeHelp: "Harmony: two notes together, lower note is reference. Melodic: first note is reference.",
+    modeHelp:
+      "Harmony:\nTwo notes play together.\nThe lower note is the reference.\n\nMelodic:\nNotes play one after another.\nThe first note is the reference.",
     direction: "Melodic direction",
     ascending: "Ascending",
     descending: "Descending",
@@ -92,7 +93,7 @@ const I18N: Record<Language, UiText> = {
     long: "Long",
     intervalPool: "Interval pool",
     practice: "Practice",
-    practiceHelp: "Listen and pick the interval from your selected pool.",
+    practiceHelp: "Listen. Feel the distance. Choose the interval.",
     play: "Play",
     currentDirection: "Current direction",
     selectOne: "Select at least one interval to start.",
@@ -101,9 +102,9 @@ const I18N: Record<Language, UiText> = {
     total: "Total",
     correct: "Correct",
     accuracy: "Accuracy",
-    correctFeedback: "Correct",
-    incorrectFeedback: "Incorrect",
-    correctAnswer: "Correct answer",
+    correctFeedback: "Correct!",
+    incorrectFeedback: "Incorrect.",
+    correctAnswer: "Correct answer:",
     octaveLabel: "Octave",
     keyboard: "Keyboard",
     keyboardHelp: "Tap keys to verify the interval.",
@@ -114,16 +115,17 @@ const I18N: Record<Language, UiText> = {
     language: "言語",
     presets: "プリセット",
     beginner: "初級",
-    basic: "ベーシック",
-    jazzIntro: "ジャズ入門",
+    basic: "中級",
+    jazzIntro: "上級",
     maxRange: "最大音程範囲",
     oneOctave: "1オクターブ",
     twoOctaves: "2オクターブ",
-    rangeHelp: "範囲設定は2音間の最大半音距離のみを制御します。",
+    rangeHelp: "2音間の最大距離を選択します。",
     mode: "モード",
     melodic: "メロディック",
     harmony: "ハーモニー",
-    modeHelp: "ハーモニー: 同時に2音（低い音が基準）。メロディック: 先に鳴る1音目が基準。",
+    modeHelp:
+      "ハーモニー:\n2音を同時に鳴らします。\n低い音が基準音です。\n\nメロディック:\n2音を順番に鳴らします。\n最初の音が基準音です。",
     direction: "メロディック方向",
     ascending: "上行",
     descending: "下行",
@@ -134,7 +136,7 @@ const I18N: Record<Language, UiText> = {
     long: "長い",
     intervalPool: "出題音程プール",
     practice: "練習",
-    practiceHelp: "再生して、選択中の音程プールから答えを選んでください。",
+    practiceHelp: "音を聴いて、度数を選択。",
     play: "再生",
     currentDirection: "現在の方向",
     selectOne: "少なくとも1つの音程を選択してください。",
@@ -143,9 +145,9 @@ const I18N: Record<Language, UiText> = {
     total: "総数",
     correct: "正解",
     accuracy: "正答率",
-    correctFeedback: "正解",
-    incorrectFeedback: "不正解",
-    correctAnswer: "正解",
+    correctFeedback: "Correct!",
+    incorrectFeedback: "Incorrect.",
+    correctAnswer: "Correct answer:",
     octaveLabel: "オクターブ",
     keyboard: "キーボード",
     keyboardHelp: "鍵盤をタップして音程を確認できます。",
@@ -461,9 +463,9 @@ export default function Home() {
 
     if (isCorrect) {
       setCorrect((prev) => prev + 1);
-      setFeedback(`${t.correctFeedback}: ${answerLabel}`);
+      setFeedback(t.correctFeedback);
     } else {
-      setFeedback(`${t.incorrectFeedback}. ${t.correctAnswer}: ${answerLabel}`);
+      setFeedback(`${t.correctAnswer} ${answerLabel}`);
     }
 
     setAnswered(true);
@@ -671,7 +673,7 @@ export default function Home() {
                 {t.harmony}
               </label>
             </div>
-            <p className="mt-2 text-xs text-[var(--muted)]">{t.modeHelp}</p>
+            <p className="mt-2 whitespace-pre-line text-xs text-[var(--muted)]">{t.modeHelp}</p>
           </div>
 
           <div>
