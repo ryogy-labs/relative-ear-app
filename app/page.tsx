@@ -288,7 +288,8 @@ export default function Home() {
   const [noteLength, setNoteLength] = useState<NoteLengthKey>("short");
 
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
-  const [feedback, setFeedback] = useState<string>("");
+  const [resultStatus, setResultStatus] = useState<"idle" | "correct" | "incorrect">("idle");
+  const [resultAnswerLabel, setResultAnswerLabel] = useState<string>("");
   const [answered, setAnswered] = useState<boolean>(false);
   const [submittedChoiceId, setSubmittedChoiceId] = useState<string | null>(null);
   const [total, setTotal] = useState<number>(0);
@@ -411,7 +412,8 @@ export default function Home() {
           correct: prev[nextAnswer.id]?.correct ?? 0,
         },
       }));
-      setFeedback("");
+      setResultStatus("idle");
+      setResultAnswerLabel("");
       setAnswered(false);
       setSubmittedChoiceId(null);
 
@@ -515,9 +517,11 @@ export default function Home() {
           correct: (prev[round.answerId]?.correct ?? 0) + 1,
         },
       }));
-      setFeedback(t.correctFeedback);
+      setResultStatus("correct");
+      setResultAnswerLabel("");
     } else {
-      setFeedback(`${t.correctAnswer} ${answerLabel}`);
+      setResultStatus("incorrect");
+      setResultAnswerLabel(answerLabel);
     }
 
     setAnswered(true);
@@ -536,28 +540,31 @@ export default function Home() {
       return [...prev, intervalId];
     });
 
-    setFeedback("");
+    setResultStatus("idle");
+    setResultAnswerLabel("");
     setAnswered(false);
     setSubmittedChoiceId(null);
   };
 
   const applyPreset = (preset: PresetKey) => {
     setSelectedIntervalIds(PRESETS[preset]);
-    setFeedback("");
+    setResultStatus("idle");
+    setResultAnswerLabel("");
     setAnswered(false);
     setSubmittedChoiceId(null);
   };
 
   const updateRange = (range: 12 | 24) => {
     setMaxRange(range);
-    setFeedback("");
+    setResultStatus("idle");
+    setResultAnswerLabel("");
     setAnswered(false);
     setSubmittedChoiceId(null);
   };
 
   const buttonClass = (intervalId: string): string => {
     const base =
-      "rounded-md border border-[var(--border)] px-4 py-2 font-medium transition disabled:cursor-not-allowed disabled:opacity-100";
+      "rounded-md border border-[var(--border)] px-4 py-2 font-medium transition disabled:cursor-not-allowed disabled:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--card)]";
 
     if (!answered || !currentRound) {
       return `${base} hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]`;
@@ -568,7 +575,7 @@ export default function Home() {
     }
 
     if (submittedChoiceId === intervalId) {
-      return `${base} border-[var(--incorrect)] bg-[var(--incorrect)] text-[var(--text)]`;
+      return `${base} border-[var(--incorrect-border)] bg-[var(--incorrect)] text-[var(--text)]`;
     }
 
     return `${base} bg-[var(--card)] text-[var(--text)]`;
@@ -613,7 +620,7 @@ export default function Home() {
       return "border-[var(--warning-border)] bg-[var(--warning-bg)] text-[var(--warning-text)]";
     }
 
-    return "border-[var(--incorrect)] bg-[var(--incorrect)] text-[var(--text)]";
+    return "border-[var(--incorrect-border)] bg-[var(--incorrect)] text-[var(--text)]";
   };
 
   const resetStats = () => {
@@ -844,12 +851,6 @@ export default function Home() {
           {t.play}
         </button>
 
-        {mode === "melodic" && currentRound && questionPool.length > 0 && (
-          <p className="mt-2 text-xs text-[var(--muted)]">
-            {t.currentDirection}: {directionSetting === "random" ? t.random : t[directionSetting]}
-          </p>
-        )}
-
         {questionPool.length === 0 ? (
           <p className="mt-5 rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3 text-sm">{t.selectOne}</p>
         ) : (
@@ -868,7 +869,31 @@ export default function Home() {
           </div>
         )}
 
-        <div className="mt-5 min-h-7 text-sm font-medium">{feedback}</div>
+        {resultStatus !== "idle" && (
+          <div className="mt-4 mb-1">
+            {resultStatus === "correct" && (
+              <p className="text-xl font-semibold text-[var(--correct-text)]">✓ Correct</p>
+            )}
+            {resultStatus === "incorrect" && (
+              <div className="space-y-1">
+                <p className="text-[1.1rem] font-semibold text-[#dc2626]">✗ Incorrect</p>
+                <p className="text-sm font-medium text-[color-mix(in_oklab,var(--incorrect)_70%,var(--text))]">
+                  Correct answer: {resultAnswerLabel}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {answered && (
+          <button
+            type="button"
+            onClick={nextRound}
+            className="mt-1 rounded-md border border-[var(--accent)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--accent)] hover:text-[var(--bg)]"
+          >
+            {t.nextInterval}
+          </button>
+        )}
 
         {answered && currentRound && (
           <section className="mt-4 rounded-lg border border-[var(--border)] p-4">
@@ -977,16 +1002,6 @@ export default function Home() {
               </div>
             </div>
           </section>
-        )}
-
-        {answered && (
-          <button
-            type="button"
-            onClick={nextRound}
-            className="mt-4 rounded-md border border-[var(--accent)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--accent)] hover:text-[var(--bg)]"
-          >
-            {t.nextInterval}
-          </button>
         )}
       </section>
 
