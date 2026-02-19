@@ -199,6 +199,15 @@ function createInitialIntervalStats(): Record<string, { asked: number; answered:
   ) as Record<string, { asked: number; answered: number; correct: number }>;
 }
 
+function matchesPresetSelection(selectedIds: string[], presetIds: string[]): boolean {
+  if (selectedIds.length !== presetIds.length) {
+    return false;
+  }
+
+  const selectedSet = new Set(selectedIds);
+  return presetIds.every((id) => selectedSet.has(id));
+}
+
 function pickRandom<T>(items: T[]): T {
   return items[Math.floor(Math.random() * items.length)];
 }
@@ -565,6 +574,30 @@ export default function Home() {
     return `${base} bg-[var(--card)] text-[var(--text)]`;
   };
 
+  const activePreset = useMemo<PresetKey | null>(() => {
+    if (matchesPresetSelection(selectedIntervalIds, PRESETS.beginner)) {
+      return "beginner";
+    }
+
+    if (matchesPresetSelection(selectedIntervalIds, PRESETS.basic)) {
+      return "basic";
+    }
+
+    if (matchesPresetSelection(selectedIntervalIds, PRESETS.jazzIntro)) {
+      return "jazzIntro";
+    }
+
+    return null;
+  }, [selectedIntervalIds]);
+
+  const presetButtonClass = (preset: PresetKey): string => {
+    if (activePreset === preset) {
+      return "rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 py-2 text-sm font-medium text-[var(--bg)]";
+    }
+
+    return "rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]";
+  };
+
   const keyboardWidth = keyboardWhiteKeys.length * WHITE_KEY_WIDTH;
 
   const breakdownCardClass = (answeredCount: number, accuracyValue: number): string => {
@@ -631,21 +664,21 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => applyPreset("beginner")}
-                className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                className={presetButtonClass("beginner")}
               >
                 {t.beginner}
               </button>
               <button
                 type="button"
                 onClick={() => applyPreset("basic")}
-                className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                className={presetButtonClass("basic")}
               >
                 {t.basic}
               </button>
               <button
                 type="button"
                 onClick={() => applyPreset("jazzIntro")}
-                className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                className={presetButtonClass("jazzIntro")}
               >
                 {t.jazzIntro}
               </button>
