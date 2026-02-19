@@ -77,8 +77,8 @@ const I18N: Record<Language, UiText> = {
     basic: "Normal",
     jazzIntro: "Hard",
     maxRange: "Max interval range",
-    oneOctave: "1 octave",
-    twoOctaves: "2 octaves",
+    oneOctave: "1 Oct",
+    twoOctaves: "2 Oct",
     rangeHelp: "Choose the maximum distance between the two notes.",
     mode: "Mode",
     melodic: "Melodic",
@@ -694,25 +694,29 @@ export default function Home() {
 
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.maxRange}</h3>
-            <div className="mt-2 flex flex-wrap gap-4 text-sm">
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="max-range"
-                  checked={maxRange === 12}
-                  onChange={() => updateRange(12)}
-                />
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => updateRange(12)}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  maxRange === 12
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
                 {t.oneOctave}
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="max-range"
-                  checked={maxRange === 24}
-                  onChange={() => updateRange(24)}
-                />
+              </button>
+              <button
+                type="button"
+                onClick={() => updateRange(24)}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  maxRange === 24
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
                 {t.twoOctaves}
-              </label>
+              </button>
             </div>
             <p className="mt-2 text-xs text-[var(--muted)]">{t.rangeHelp}</p>
           </div>
@@ -758,62 +762,72 @@ export default function Home() {
 
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.mode}</h3>
-            <div className="mt-2 flex gap-4 text-sm">
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="mode"
-                  checked={mode === "melodic"}
-                  onChange={() => setMode("melodic")}
-                />
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setMode("melodic")}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  mode === "melodic"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
                 {t.melodic}
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="mode"
-                  checked={mode === "harmony"}
-                  onChange={() => setMode("harmony")}
-                />
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("harmony")}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  mode === "harmony"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
                 {t.harmony}
-              </label>
+              </button>
             </div>
             <p className="mt-2 whitespace-pre-line text-xs text-[var(--muted)]">{t.modeHelp}</p>
           </div>
 
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.direction}</h3>
-            <div className="mt-2 flex flex-wrap gap-4 text-sm">
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="direction"
-                  checked={directionSetting === "ascending"}
-                  onChange={() => setDirectionSetting("ascending")}
-                  disabled={mode === "harmony"}
-                />
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setDirectionSetting("ascending")}
+                disabled={mode === "harmony"}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  directionSetting === "ascending"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                } disabled:cursor-not-allowed disabled:opacity-50`}
+              >
                 {t.ascending}
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="direction"
-                  checked={directionSetting === "descending"}
-                  onChange={() => setDirectionSetting("descending")}
-                  disabled={mode === "harmony"}
-                />
+              </button>
+              <button
+                type="button"
+                onClick={() => setDirectionSetting("descending")}
+                disabled={mode === "harmony"}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  directionSetting === "descending"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                } disabled:cursor-not-allowed disabled:opacity-50`}
+              >
                 {t.descending}
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="direction"
-                  checked={directionSetting === "random"}
-                  onChange={() => setDirectionSetting("random")}
-                  disabled={mode === "harmony"}
-                />
+              </button>
+              <button
+                type="button"
+                onClick={() => setDirectionSetting("random")}
+                disabled={mode === "harmony"}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  directionSetting === "random"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                } disabled:cursor-not-allowed disabled:opacity-50`}
+              >
                 {t.random}
-              </label>
+              </button>
             </div>
           </div>
         </div>
@@ -821,19 +835,25 @@ export default function Home() {
         <div className="mt-6">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.intervalPool}</h3>
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-            {INTERVALS.map((interval) => (
-              <label
-                key={interval.id}
-                className="flex items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2 text-sm"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedIntervalIds.includes(interval.id)}
-                  onChange={() => toggleInterval(interval.id)}
-                />
-                {intervalDisplayLabel(interval.id, language)}
-              </label>
-            ))}
+            {INTERVALS.map((interval) => {
+              const isSelected = selectedIntervalIds.includes(interval.id);
+
+              return (
+                <button
+                  key={interval.id}
+                  type="button"
+                  onClick={() => toggleInterval(interval.id)}
+                  aria-pressed={isSelected}
+                  className={`rounded-md border px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--card)] ${
+                    isSelected
+                      ? "border-[var(--ref-border)] bg-[var(--ref-bg)] text-[var(--ref-text)]"
+                      : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                  }`}
+                >
+                  {intervalDisplayLabel(interval.id, language)}
+                </button>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -877,8 +897,9 @@ export default function Home() {
             {resultStatus === "incorrect" && (
               <div className="space-y-1">
                 <p className="text-[1.1rem] font-semibold text-[#dc2626]">✗ Incorrect</p>
-                <p className="text-sm font-medium text-[color-mix(in_oklab,var(--incorrect)_70%,var(--text))]">
-                  Correct answer: {resultAnswerLabel}
+                <p className="text-sm font-medium">
+                  <span className="text-[var(--muted)]">Correct answer: </span>
+                  <span className="font-semibold text-[var(--correct-text)]">{resultAnswerLabel}</span>
                 </p>
               </div>
             )}
