@@ -9,6 +9,7 @@
   --accent: #111111;
   --correct: #DCFCE7;
   --incorrect: #FEE2E2;
+  --incorrect-border: #DC2626;
   --warning-bg: #FEF3C7;
   --warning-border: #FCD34D;
   --warning-text: #78350F;
@@ -41,6 +42,7 @@
     --accent: #e5e7eb;
     --correct: #14532D;
     --incorrect: #7f1d1d;
+    --incorrect-border: #F87171;
     --warning-bg: #422006;
     --warning-border: #D97706;
     --warning-text: #FDE68A;
