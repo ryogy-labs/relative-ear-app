@@ -13,6 +13,7 @@ type ResolvedDirection = "ascending" | "descending";
 type PresetKey = "beginner" | "basic" | "jazzIntro";
 type Language = "en" | "ja";
 type NoteLengthKey = "short" | "medium" | "long";
+type AppTab = "practice" | "stats" | "settings";
 
 type Round = {
   answerId: string;
@@ -25,6 +26,8 @@ type Round = {
 type UiText = {
   title: string;
   settings: string;
+  systemSettings: string;
+  practiceSettings: string;
   language: string;
   presets: string;
   beginner: string;
@@ -74,6 +77,8 @@ const I18N: Record<Language, UiText> = {
   en: {
     title: "Interval Ear Trainer",
     settings: "Settings",
+    systemSettings: "System Settings",
+    practiceSettings: "Practice Settings",
     language: "Language",
     presets: "Presets",
     beginner: "Easy",
@@ -122,6 +127,8 @@ const I18N: Record<Language, UiText> = {
   ja: {
     title: "音程イヤートレーナー",
     settings: "設定",
+    systemSettings: "システム設定",
+    practiceSettings: "練習設定",
     language: "言語",
     presets: "プリセット",
     beginner: "初級",
@@ -376,6 +383,7 @@ export default function Home() {
   const [directionSetting, setDirectionSetting] = useState<DirectionSetting>("random");
   const [noteLength, setNoteLength] = useState<NoteLengthKey>("short");
   const [sfxEnabled, setSfxEnabled] = useState<boolean>(true);
+  const [activeTab, setActiveTab] = useState<AppTab>("practice");
 
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
   const [resultStatus, setResultStatus] = useState<"idle" | "correct" | "incorrect">("idle");
@@ -724,12 +732,23 @@ export default function Home() {
     setIntervalStats(createInitialIntervalStats());
   };
 
+  const tabButtonClass = (tab: AppTab): string => {
+    if (activeTab === tab) {
+      return "rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-[var(--bg)]";
+    }
+
+    return "rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-semibold text-[var(--text)]";
+  };
+
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 px-6 py-10 text-[var(--text)]">
+    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 py-10 text-[var(--text)]">
       <h1 className="text-center text-3xl font-bold">{t.title}</h1>
 
-      <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
-        <h2 className="text-xl font-semibold">System Settings</h2>
+      <div className="mt-8 flex flex-1 flex-col gap-8">
+        {activeTab === "settings" && (
+          <>
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+        <h2 className="text-xl font-semibold">{t.systemSettings}</h2>
 
         <div className="mt-4 grid items-start gap-x-6 gap-y-6 md:grid-cols-2">
           <div>
@@ -788,10 +807,10 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </section>
+            </section>
 
-      <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
-        <h2 className="text-xl font-semibold">Practice Settings</h2>
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+        <h2 className="text-xl font-semibold">{t.practiceSettings}</h2>
 
         <div className="mt-4 grid items-start gap-x-6 gap-y-6 md:grid-cols-2">
           <div>
@@ -985,9 +1004,12 @@ export default function Home() {
             })}
           </div>
         </div>
-      </section>
+            </section>
+          </>
+        )}
 
-      <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+        {activeTab === "practice" && (
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
         <h2 className="text-xl font-semibold">{t.practice}</h2>
         <p className="mt-2 text-sm text-[var(--muted)]">{t.practiceHelp}</p>
 
@@ -1153,9 +1175,11 @@ export default function Home() {
             </div>
           </section>
         )}
-      </section>
+          </section>
+        )}
 
-      <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+        {activeTab === "stats" && (
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
         <h2 className="text-xl font-semibold">{t.stats}</h2>
         <div className="mt-4 grid grid-cols-3 gap-3 text-center">
           <div className="rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3">
@@ -1208,7 +1232,23 @@ export default function Home() {
             );
           })}
         </div>
-      </section>
+          </section>
+        )}
+
+        <nav className="sticky bottom-0 z-20 mt-auto rounded-xl border border-[var(--border)] bg-[color-mix(in_oklab,var(--card)_92%,transparent)] p-2 shadow-sm backdrop-blur">
+          <div className="grid grid-cols-3 gap-2">
+            <button type="button" className={tabButtonClass("practice")} onClick={() => setActiveTab("practice")}>
+              {t.practice}
+            </button>
+            <button type="button" className={tabButtonClass("stats")} onClick={() => setActiveTab("stats")}>
+              {t.stats}
+            </button>
+            <button type="button" className={tabButtonClass("settings")} onClick={() => setActiveTab("settings")}>
+              {t.settings}
+            </button>
+          </div>
+        </nav>
+      </div>
     </main>
   );
 }
