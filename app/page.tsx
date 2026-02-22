@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Interval = {
   id: string;
@@ -402,6 +402,7 @@ export default function Home() {
   const [intervalStats, setIntervalStats] = useState<Record<string, { asked: number; answered: number; correct: number }>>(
     createInitialIntervalStats,
   );
+  const keyboardScrollRef = useRef<HTMLDivElement | null>(null);
 
   const t = I18N[language];
   const { ensureContext, playCorrect, playWrong } = useSfx(sfxEnabled);
@@ -716,6 +717,50 @@ export default function Home() {
   };
 
   const keyboardWidth = keyboardWhiteKeys.length * WHITE_KEY_WIDTH;
+  const keyStartOffsetByMidi = useMemo(() => {
+    const offsets = new Map<number, number>();
+
+    keyboardWhiteKeys.forEach((midi, index) => {
+      offsets.set(midi, index * WHITE_KEY_WIDTH);
+    });
+
+    keyboardBlackKeys.forEach((key) => {
+      offsets.set(key.midi, key.whiteCountBefore * WHITE_KEY_WIDTH - BLACK_KEY_WIDTH / 2);
+    });
+
+    return offsets;
+  }, [keyboardBlackKeys, keyboardWhiteKeys]);
+
+  useEffect(() => {
+    if (activeTab !== "practice" || !answered || !currentRound || !keyboardVisible) {
+      return;
+    }
+
+    const scrollContainer = keyboardScrollRef.current;
+    if (!scrollContainer) {
+      return;
+    }
+
+    const anchorMidi = Math.min(currentRound.note1Midi, currentRound.note2Midi);
+    const anchorOffset = keyStartOffsetByMidi.get(anchorMidi);
+    if (anchorOffset === undefined) {
+      return;
+    }
+
+    const targetLeft = Math.max(0, anchorOffset - 12);
+    const maxScrollLeft = Math.max(0, scrollContainer.scrollWidth - scrollContainer.clientWidth);
+
+    scrollContainer.scrollTo({
+      left: Math.min(targetLeft, maxScrollLeft),
+      behavior: "smooth",
+    });
+  }, [
+    activeTab,
+    answered,
+    currentRound,
+    keyboardVisible,
+    keyStartOffsetByMidi,
+  ]);
 
   const breakdownCardClass = (answeredCount: number, accuracyValue: number): string => {
     if (answeredCount === 0) {
@@ -1089,7 +1134,7 @@ export default function Home() {
             </section>
 
         {answered && currentRound && keyboardVisible && (
-          <section className="relative left-1/2 mt-4 w-screen max-w-none -translate-x-1/2 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm sm:left-0 sm:w-auto sm:translate-x-0">
+          <section className="relative left-1/2 mt-4 w-[calc(100vw-16px)] max-w-[calc(100vw-16px)] -translate-x-1/2 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm sm:left-0 sm:w-auto sm:max-w-none sm:translate-x-0">
             <div className="flex items-start justify-between gap-3">
               <div>
             <h2 className="text-xl font-semibold">{t.keyboard}</h2>
@@ -1105,7 +1150,7 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="mt-4 w-full overflow-x-auto">
+            <div ref={keyboardScrollRef} className="mt-4 w-full overflow-x-auto">
                 <div
                   className="relative h-[220px] overflow-hidden rounded-md bg-[color-mix(in_oklab,var(--text)_3%,transparent)]"
                   style={{
