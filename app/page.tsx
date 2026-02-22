@@ -66,6 +66,8 @@ type UiText = {
   octaveLabel: string;
   keyboard: string;
   keyboardHelp: string;
+  showKeyboard: string;
+  closeKeyboard: string;
   intervalBreakdown: string;
   resetStats: string;
   soundEffects: string;
@@ -118,6 +120,8 @@ const I18N: Record<Language, UiText> = {
     octaveLabel: "Octave",
     keyboard: "Keyboard",
     keyboardHelp: "Tap keys to verify the interval.",
+    showKeyboard: "Show keyboard",
+    closeKeyboard: "Close keyboard",
     intervalBreakdown: "Interval Breakdown",
     resetStats: "Reset Stats",
     soundEffects: "Sound Effects",
@@ -168,6 +172,8 @@ const I18N: Record<Language, UiText> = {
     octaveLabel: "オクターブ",
     keyboard: "キーボード",
     keyboardHelp: "鍵盤をタップして音程を確認できます。",
+    showKeyboard: "キーボードを表示",
+    closeKeyboard: "キーボードを閉じる",
     intervalBreakdown: "Interval Breakdown",
     resetStats: "統計をリセット",
     soundEffects: "効果音",
@@ -384,6 +390,7 @@ export default function Home() {
   const [noteLength, setNoteLength] = useState<NoteLengthKey>("short");
   const [sfxEnabled, setSfxEnabled] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<AppTab>("practice");
+  const [keyboardVisible, setKeyboardVisible] = useState<boolean>(true);
 
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
   const [resultStatus, setResultStatus] = useState<"idle" | "correct" | "incorrect">("idle");
@@ -1009,7 +1016,8 @@ export default function Home() {
         )}
 
         {activeTab === "practice" && (
-          <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+          <>
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
         <h2 className="text-xl font-semibold">{t.practice}</h2>
         <p className="mt-2 text-sm text-[var(--muted)]">{t.practiceHelp}</p>
 
@@ -1058,29 +1066,54 @@ export default function Home() {
         )}
 
         {answered && (
-          <button
-            type="button"
-            onClick={nextRound}
-            className="mt-1 rounded-md border border-[var(--accent)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--accent)] hover:text-[var(--bg)]"
-          >
-            {t.nextInterval}
-          </button>
-        )}
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-2">
+            <button
+              type="button"
+              onClick={nextRound}
+              className="rounded-md border border-[var(--accent)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--accent)] hover:text-[var(--bg)]"
+            >
+              {t.nextInterval}
+            </button>
 
-        {answered && currentRound && (
-          <section className="mt-4 rounded-lg border border-[var(--border)] p-4">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.keyboard}</h3>
+            {currentRound && !keyboardVisible && (
+              <button
+                type="button"
+                onClick={() => setKeyboardVisible(true)}
+                className="rounded-md border border-[var(--accent)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--accent)] hover:text-[var(--bg)]"
+              >
+                {t.showKeyboard}
+              </button>
+            )}
+          </div>
+        )}
+            </section>
+
+        {answered && currentRound && keyboardVisible && (
+          <section className="relative left-1/2 mt-4 w-screen max-w-none -translate-x-1/2 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm sm:left-0 sm:w-auto sm:translate-x-0">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+            <h2 className="text-xl font-semibold">{t.keyboard}</h2>
             <p className="mt-1 text-xs text-[var(--muted)]">{t.keyboardHelp}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setKeyboardVisible(false)}
+                className="rounded-md border border-[var(--border)] px-2 py-1 text-lg leading-none text-[var(--muted)] transition hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                aria-label={t.closeKeyboard}
+              >
+                ×
+              </button>
+            </div>
 
             <div className="mt-4 w-full overflow-x-auto">
-              <div
-                className="relative h-[220px] overflow-hidden rounded-md bg-[color-mix(in_oklab,var(--text)_3%,transparent)]"
-                style={{
-                  width: `${keyboardWidth}px`,
-                  minWidth: `${keyboardWidth}px`,
-                  border: "1px solid var(--keyboard-border)",
-                }}
-              >
+                <div
+                  className="relative h-[220px] overflow-hidden rounded-md bg-[color-mix(in_oklab,var(--text)_3%,transparent)]"
+                  style={{
+                    width: `${keyboardWidth}px`,
+                    minWidth: `${keyboardWidth}px`,
+                    border: "1px solid var(--keyboard-border)",
+                  }}
+                >
                 <div className="absolute inset-0 flex">
                   {keyboardWhiteKeys.map((midi, index) => {
                     const isNote1 = midi === currentRound.note1Midi;
@@ -1171,11 +1204,11 @@ export default function Home() {
                       "0 0 0 1px var(--keyboard-border), inset 0 -1px 0 rgba(0, 0, 0, 0.15)",
                   }}
                 />
-              </div>
+                </div>
             </div>
           </section>
         )}
-          </section>
+          </>
         )}
 
         {activeTab === "stats" && (
