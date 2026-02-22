@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 type Interval = {
   id: string;
@@ -65,6 +65,9 @@ type UiText = {
   keyboardHelp: string;
   intervalBreakdown: string;
   resetStats: string;
+  soundEffects: string;
+  on: string;
+  off: string;
 };
 
 const I18N: Record<Language, UiText> = {
@@ -112,6 +115,9 @@ const I18N: Record<Language, UiText> = {
     keyboardHelp: "Tap keys to verify the interval.",
     intervalBreakdown: "Interval Breakdown",
     resetStats: "Reset Stats",
+    soundEffects: "Sound Effects",
+    on: "ON",
+    off: "OFF",
   },
   ja: {
     title: "音程イヤートレーナー",
@@ -157,6 +163,9 @@ const I18N: Record<Language, UiText> = {
     keyboardHelp: "鍵盤をタップして音程を確認できます。",
     intervalBreakdown: "Interval Breakdown",
     resetStats: "統計をリセット",
+    soundEffects: "効果音",
+    on: "ON",
+    off: "OFF",
   },
 };
 
@@ -279,6 +288,86 @@ function degreeLabelFromRoot(rootMidi: number, targetMidi: number): string {
   return labels[diff];
 }
 
+function useSfx(enabled: boolean) {
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  const ensureContext = useCallback(async (): Promise<AudioContext | null> => {
+    if (!enabled || typeof window === "undefined") {
+      return null;
+    }
+
+    if (!audioContextRef.current) {
+      audioContextRef.current = new window.AudioContext();
+    }
+
+    if (audioContextRef.current.state === "suspended") {
+      await audioContextRef.current.resume();
+    }
+
+    return audioContextRef.current;
+  }, [enabled]);
+
+  const playTone = useCallback(
+    (
+      audioContext: AudioContext,
+      frequency: number,
+      startTime: number,
+      duration: number,
+      type: OscillatorType = "sine",
+      volume = 0.35,
+    ) => {
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+
+      oscillator.type = type;
+      oscillator.frequency.setValueAtTime(frequency, startTime);
+
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.exponentialRampToValueAtTime(volume, startTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+
+      oscillator.start(startTime);
+      oscillator.stop(startTime + duration);
+    },
+    [],
+  );
+
+  const playCorrect = useCallback(async () => {
+    try {
+      const audioContext = await ensureContext();
+      if (!audioContext) {
+        return;
+      }
+
+      const now = audioContext.currentTime;
+      playTone(audioContext, 880, now, 0.09, "sine", 0.3);
+      playTone(audioContext, 1174.66, now + 0.1, 0.12, "sine", 0.33);
+    } catch {
+      // Avoid UI-breaking errors on unsupported/restricted audio contexts.
+    }
+  }, [ensureContext, playTone]);
+
+  const playWrong = useCallback(async () => {
+    try {
+      const audioContext = await ensureContext();
+      if (!audioContext) {
+        return;
+      }
+
+      const now = audioContext.currentTime;
+      playTone(audioContext, 220, now, 0.14, "square", 0.18);
+      playTone(audioContext, 180, now + 0.11, 0.16, "sine", 0.15);
+    } catch {
+      // Avoid UI-breaking errors on unsupported/restricted audio contexts.
+    }
+  }, [ensureContext, playTone]);
+
+  return { ensureContext, playCorrect, playWrong };
+}
+
 export default function Home() {
   const [language, setLanguage] = useState<Language>("en");
   const [selectedIntervalIds, setSelectedIntervalIds] = useState<string[]>(PRESETS.basic);
@@ -286,6 +375,7 @@ export default function Home() {
   const [mode, setMode] = useState<TrainingMode>("melodic");
   const [directionSetting, setDirectionSetting] = useState<DirectionSetting>("random");
   const [noteLength, setNoteLength] = useState<NoteLengthKey>("short");
+  const [sfxEnabled, setSfxEnabled] = useState<boolean>(true);
 
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
   const [resultStatus, setResultStatus] = useState<"idle" | "correct" | "incorrect">("idle");
@@ -299,6 +389,7 @@ export default function Home() {
   );
 
   const t = I18N[language];
+  const { ensureContext, playCorrect, playWrong } = useSfx(sfxEnabled);
 
   const questionPool = useMemo(
     () => INTERVALS.filter((interval) => selectedIntervalIds.includes(interval.id)),
@@ -433,6 +524,8 @@ export default function Home() {
   };
 
   const playInterval = async () => {
+    await ensureContext();
+
     const round = getRound();
     if (!round) {
       return;
@@ -519,9 +612,11 @@ export default function Home() {
       }));
       setResultStatus("correct");
       setResultAnswerLabel("");
+      void playCorrect();
     } else {
       setResultStatus("incorrect");
       setResultAnswerLabel(answerLabel);
+      void playWrong();
     }
 
     setAnswered(true);
@@ -636,7 +731,7 @@ export default function Home() {
       <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
         <h2 className="text-xl font-semibold">{t.settings}</h2>
 
-        <div className="mt-4 grid gap-6 lg:grid-cols-2">
+        <div className="mt-4 grid items-start gap-x-6 gap-y-6 md:grid-cols-2">
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.language}</h3>
             <div className="mt-2 flex gap-2">
@@ -760,7 +855,35 @@ export default function Home() {
             </div>
           </div>
 
-          <div>
+          <div className="md:col-start-1 md:row-start-3">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.soundEffects}</h3>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setSfxEnabled(true)}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  sfxEnabled
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.on}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSfxEnabled(false)}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  !sfxEnabled
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.off}
+              </button>
+            </div>
+          </div>
+
+          <div className="md:col-span-2 md:row-start-4">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.mode}</h3>
             <div className="mt-2 flex gap-2">
               <button
@@ -789,7 +912,7 @@ export default function Home() {
             <p className="mt-2 whitespace-pre-line text-xs text-[var(--muted)]">{t.modeHelp}</p>
           </div>
 
-          <div>
+          <div className="md:col-start-2 md:row-start-3">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.direction}</h3>
             <div className="mt-2 flex flex-wrap gap-2">
               <button
