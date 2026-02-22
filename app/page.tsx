@@ -729,7 +729,7 @@ export default function Home() {
       <h1 className="text-center text-3xl font-bold">{t.title}</h1>
 
       <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
-        <h2 className="text-xl font-semibold">{t.settings}</h2>
+        <h2 className="text-xl font-semibold">System Settings</h2>
 
         <div className="mt-4 grid items-start gap-x-6 gap-y-6 md:grid-cols-2">
           <div>
@@ -761,6 +761,40 @@ export default function Home() {
           </div>
 
           <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.soundEffects}</h3>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setSfxEnabled(true)}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  sfxEnabled
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.on}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSfxEnabled(false)}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  !sfxEnabled
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.off}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+        <h2 className="text-xl font-semibold">Practice Settings</h2>
+
+        <div className="mt-4 grid items-start gap-x-6 gap-y-6 md:grid-cols-2">
+          <div>
             <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.presets}</h3>
             <div className="mt-2 flex flex-wrap gap-2">
               <button
@@ -785,35 +819,6 @@ export default function Home() {
                 {t.jazzIntro}
               </button>
             </div>
-          </div>
-
-          <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.maxRange}</h3>
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => updateRange(12)}
-                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                  maxRange === 12
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                }`}
-              >
-                {t.oneOctave}
-              </button>
-              <button
-                type="button"
-                onClick={() => updateRange(24)}
-                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                  maxRange === 24
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                }`}
-              >
-                {t.twoOctaves}
-              </button>
-            </div>
-            <p className="mt-2 text-xs text-[var(--muted)]">{t.rangeHelp}</p>
           </div>
 
           <div>
@@ -855,64 +860,36 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="md:col-start-1 md:row-start-3">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.soundEffects}</h3>
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.maxRange}</h3>
             <div className="mt-2 flex gap-2">
               <button
                 type="button"
-                onClick={() => setSfxEnabled(true)}
+                onClick={() => updateRange(12)}
                 className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                  sfxEnabled
+                  maxRange === 12
                     ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
                     : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
                 }`}
               >
-                {t.on}
+                {t.oneOctave}
               </button>
               <button
                 type="button"
-                onClick={() => setSfxEnabled(false)}
+                onClick={() => updateRange(24)}
                 className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                  !sfxEnabled
+                  maxRange === 24
                     ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
                     : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
                 }`}
               >
-                {t.off}
+                {t.twoOctaves}
               </button>
             </div>
+            <p className="mt-2 text-xs text-[var(--muted)]">{t.rangeHelp}</p>
           </div>
 
-          <div className="md:col-span-2 md:row-start-4">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.mode}</h3>
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setMode("melodic")}
-                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                  mode === "melodic"
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                }`}
-              >
-                {t.melodic}
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("harmony")}
-                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                  mode === "harmony"
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                }`}
-              >
-                {t.harmony}
-              </button>
-            </div>
-            <p className="mt-2 whitespace-pre-line text-xs text-[var(--muted)]">{t.modeHelp}</p>
-          </div>
-
-          <div className="md:col-start-2 md:row-start-3">
+          <div>
             <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.direction}</h3>
             <div className="mt-2 flex flex-wrap gap-2">
               <button
@@ -952,6 +929,35 @@ export default function Home() {
                 {t.random}
               </button>
             </div>
+          </div>
+
+          <div className="md:col-span-2">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.mode}</h3>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setMode("melodic")}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  mode === "melodic"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.melodic}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("harmony")}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  mode === "harmony"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.harmony}
+              </button>
+            </div>
+            <p className="mt-2 whitespace-pre-line text-xs text-[var(--muted)]">{t.modeHelp}</p>
           </div>
         </div>
 
