@@ -1134,7 +1134,7 @@ export default function Home() {
             </section>
 
         {answered && currentRound && keyboardVisible && (
-          <section className="relative left-1/2 mt-4 w-[calc(100vw-16px)] max-w-[calc(100vw-16px)] -translate-x-1/2 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm sm:left-0 sm:w-auto sm:max-w-none sm:translate-x-0">
+          <section className="relative left-1/2 mt-4 w-[calc(100vw-16px)] max-w-[calc(100vw-16px)] -translate-x-1/2 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] px-2 py-4 shadow-sm sm:left-0 sm:w-auto sm:max-w-none sm:translate-x-0 sm:p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
             <h2 className="text-xl font-semibold">{t.keyboard}</h2>
