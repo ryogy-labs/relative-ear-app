@@ -791,6 +791,8 @@ export default function Home() {
 
     return "rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-semibold text-[var(--text)]";
   };
+  const practiceControlButtonBase =
+    "rounded-md px-5 py-3 text-sm font-semibold leading-5 transition disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 py-10 text-[var(--text)]">
@@ -1066,35 +1068,28 @@ export default function Home() {
         <h2 className="text-xl font-semibold">{t.practice}</h2>
         <p className="mt-2 text-sm text-[var(--muted)]">{t.practiceHelp}</p>
 
-        <button
-          type="button"
-          onClick={playInterval}
-          disabled={questionPool.length === 0}
-          className="mt-5 rounded-md bg-[var(--accent)] px-5 py-3 font-medium text-[var(--bg)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {t.play}
-        </button>
-
-        {questionPool.length === 0 ? (
-          <p className="mt-5 rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3 text-sm">{t.selectOne}</p>
-        ) : (
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {questionPool.map((interval) => (
-              <button
-                key={interval.id}
-                type="button"
-                disabled={answered}
-                onClick={() => checkAnswer(interval)}
-                className={buttonClass(interval.id)}
-              >
-                {intervalDisplayLabel(interval.id, language)}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <button
+            type="button"
+            onClick={playInterval}
+            disabled={questionPool.length === 0}
+            className={`${practiceControlButtonBase} bg-[var(--accent)] text-[var(--bg)] hover:opacity-90`}
+          >
+            {t.play}
+          </button>
+          {answered && (
+            <button
+              type="button"
+              onClick={nextRound}
+              className={`${practiceControlButtonBase} border border-[var(--accent)] hover:bg-[var(--accent)] hover:text-[var(--bg)]`}
+            >
+              {t.nextInterval}
+            </button>
+          )}
+        </div>
 
         {resultStatus !== "idle" && (
-          <div className="mt-4 mb-1">
+          <div className="mt-2">
             {resultStatus === "correct" && (
               <p className="text-xl font-semibold text-[var(--correct-text)]">✓ Correct</p>
             )}
@@ -1110,31 +1105,39 @@ export default function Home() {
           </div>
         )}
 
-        {answered && (
+        {questionPool.length === 0 ? (
+          <p className="mt-5 rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3 text-sm">{t.selectOne}</p>
+        ) : (
+          <div className={`${resultStatus !== "idle" ? "mt-2" : "mt-6"} grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4`}>
+            {questionPool.map((interval) => (
+              <button
+                key={interval.id}
+                type="button"
+                disabled={answered}
+                onClick={() => checkAnswer(interval)}
+                className={buttonClass(interval.id)}
+              >
+                {intervalDisplayLabel(interval.id, language)}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {answered && currentRound && !keyboardVisible && (
           <div className="mt-2 flex flex-wrap gap-x-3 gap-y-2">
             <button
               type="button"
-              onClick={nextRound}
+              onClick={() => setKeyboardVisible(true)}
               className="rounded-md border border-[var(--accent)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--accent)] hover:text-[var(--bg)]"
             >
-              {t.nextInterval}
+              {t.showKeyboard}
             </button>
-
-            {currentRound && !keyboardVisible && (
-              <button
-                type="button"
-                onClick={() => setKeyboardVisible(true)}
-                className="rounded-md border border-[var(--accent)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--accent)] hover:text-[var(--bg)]"
-              >
-                {t.showKeyboard}
-              </button>
-            )}
           </div>
         )}
             </section>
 
         {answered && currentRound && keyboardVisible && (
-          <section className="relative left-1/2 mt-4 w-[calc(100vw-16px)] max-w-[calc(100vw-16px)] -translate-x-1/2 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] px-2 py-4 shadow-sm sm:left-0 sm:w-auto sm:max-w-none sm:translate-x-0 sm:p-4">
+          <section className="relative left-1/2 mt-3 w-[calc(100vw-16px)] max-w-[calc(100vw-16px)] -translate-x-1/2 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] px-2 py-4 shadow-sm sm:left-0 sm:w-auto sm:max-w-none sm:translate-x-0 sm:p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
             <h2 className="text-xl font-semibold">{t.keyboard}</h2>
