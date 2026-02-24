@@ -795,13 +795,13 @@ export default function Home() {
     "rounded-md px-5 py-3 text-sm font-semibold leading-5 transition disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 py-10 text-[var(--text)]">
+    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 py-10 text-[var(--text)] max-[480px]:px-4 max-[480px]:py-5">
       <h1 className="text-center text-3xl font-bold">{t.title}</h1>
 
-      <div className="mt-8 flex flex-1 flex-col gap-8">
+      <div className="mt-8 flex flex-1 flex-col gap-8 max-[480px]:mt-4 max-[480px]:gap-4">
         {activeTab === "settings" && (
           <>
-            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
         <h2 className="text-xl font-semibold">{t.systemSettings}</h2>
 
         <div className="mt-4 grid items-start gap-x-6 gap-y-6 md:grid-cols-2">
@@ -863,7 +863,7 @@ export default function Home() {
         </div>
             </section>
 
-            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
         <h2 className="text-xl font-semibold">{t.practiceSettings}</h2>
 
         <div className="mt-4 grid items-start gap-x-6 gap-y-6 md:grid-cols-2">
@@ -1064,7 +1064,7 @@ export default function Home() {
 
         {activeTab === "practice" && (
           <>
-            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
         <h2 className="text-xl font-semibold">{t.practice}</h2>
         <p className="mt-2 text-sm text-[var(--muted)]">{t.practiceHelp}</p>
 
@@ -1137,7 +1137,7 @@ export default function Home() {
             </section>
 
         {answered && currentRound && keyboardVisible && (
-          <section className="relative left-1/2 mt-3 w-[calc(100vw-16px)] max-w-[calc(100vw-16px)] -translate-x-1/2 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] px-2 py-4 shadow-sm sm:left-0 sm:w-auto sm:max-w-none sm:translate-x-0 sm:p-4">
+          <section className="relative left-1/2 mt-3 w-[calc(100vw-16px)] max-w-[calc(100vw-16px)] -translate-x-1/2 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] px-2 py-4 shadow-sm max-[480px]:mt-2 max-[480px]:py-3 sm:left-0 sm:w-auto sm:max-w-none sm:translate-x-0 sm:p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
             <h2 className="text-xl font-semibold">{t.keyboard}</h2>
@@ -1260,7 +1260,7 @@ export default function Home() {
         )}
 
         {activeTab === "stats" && (
-          <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
         <h2 className="text-xl font-semibold">{t.stats}</h2>
         <div className="mt-4 grid grid-cols-3 gap-3 text-center">
           <div className="rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3">
