@@ -519,109 +519,135 @@ export default function Home() {
       }
 
       if (selectedInstrument === "piano") {
-        // Model a piano-like attack/decay: short hammer noise + slightly inharmonic rich partials.
+        // Piano-like tone: hammer transient + inharmonic partials + slight string-pair detune.
         const master = audioContext.createGain();
-        const bodyFilter = audioContext.createBiquadFilter();
-        bodyFilter.type = "lowpass";
-        bodyFilter.frequency.setValueAtTime(5600, startTime);
-        bodyFilter.frequency.exponentialRampToValueAtTime(3200, startTime + duration * 0.45);
-        bodyFilter.Q.setValueAtTime(0.65, startTime);
+        const toneFilter = audioContext.createBiquadFilter();
+        toneFilter.type = "lowpass";
+        toneFilter.frequency.setValueAtTime(6200, startTime);
+        toneFilter.frequency.exponentialRampToValueAtTime(2700, startTime + duration * 0.55);
+        toneFilter.Q.setValueAtTime(0.7, startTime);
+
+        const bodyPeak = audioContext.createBiquadFilter();
+        bodyPeak.type = "peaking";
+        bodyPeak.frequency.setValueAtTime(Math.min(520, Math.max(170, frequency * 1.6)), startTime);
+        bodyPeak.Q.setValueAtTime(0.95, startTime);
+        bodyPeak.gain.setValueAtTime(2.8, startTime);
 
         master.gain.setValueAtTime(0.0001, startTime);
-        master.gain.exponentialRampToValueAtTime(0.16, startTime + 0.016);
-        master.gain.exponentialRampToValueAtTime(0.04, startTime + duration * 0.38);
+        master.gain.exponentialRampToValueAtTime(0.145, startTime + 0.012);
+        master.gain.exponentialRampToValueAtTime(0.052, startTime + duration * 0.24);
         master.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
 
-        master.connect(bodyFilter);
-        bodyFilter.connect(audioContext.destination);
+        master.connect(toneFilter);
+        toneFilter.connect(bodyPeak);
+        bodyPeak.connect(audioContext.destination);
 
         const hammerNoise = audioContext.createBufferSource();
         hammerNoise.buffer = getNoiseBuffer(audioContext);
         const hammerFilter = audioContext.createBiquadFilter();
         hammerFilter.type = "bandpass";
-        hammerFilter.frequency.setValueAtTime(Math.min(5200, Math.max(2000, frequency * 6)), startTime);
-        hammerFilter.Q.setValueAtTime(1.2, startTime);
+        hammerFilter.frequency.setValueAtTime(Math.min(6400, Math.max(2200, frequency * 5.4)), startTime);
+        hammerFilter.Q.setValueAtTime(1.35, startTime);
         const hammerGain = audioContext.createGain();
         hammerGain.gain.setValueAtTime(0.0001, startTime);
-        hammerGain.gain.exponentialRampToValueAtTime(0.05, startTime + 0.004);
-        hammerGain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.035);
+        hammerGain.gain.exponentialRampToValueAtTime(0.024, startTime + 0.003);
+        hammerGain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.03);
         hammerNoise.connect(hammerFilter);
         hammerFilter.connect(hammerGain);
         hammerGain.connect(master);
         hammerNoise.start(startTime);
-        hammerNoise.stop(startTime + 0.04);
+        hammerNoise.stop(startTime + 0.032);
 
         const partials = [
-          { ratio: 1.0, weight: 1.0, type: "sine" as OscillatorType, life: 1.0 },
-          { ratio: 2.01, weight: 0.44, type: "triangle" as OscillatorType, life: 0.8 },
-          { ratio: 3.03, weight: 0.24, type: "sine" as OscillatorType, life: 0.62 },
-          { ratio: 4.08, weight: 0.14, type: "triangle" as OscillatorType, life: 0.5 },
+          { ratio: 1.0, weight: 1.0, type: "triangle" as OscillatorType, life: 1.0, detuneCents: [-2.8, 2.8] },
+          { ratio: 2.01, weight: 0.46, type: "sine" as OscillatorType, life: 0.82, detuneCents: [-1.4, 1.4] },
+          { ratio: 3.04, weight: 0.25, type: "triangle" as OscillatorType, life: 0.64, detuneCents: [0] },
+          { ratio: 4.11, weight: 0.13, type: "sine" as OscillatorType, life: 0.5, detuneCents: [0] },
         ];
 
         partials.forEach((partial) => {
-          const oscillator = audioContext.createOscillator();
-          const partialGain = audioContext.createGain();
-          oscillator.type = partial.type;
-          oscillator.frequency.setValueAtTime(frequency * partial.ratio, startTime);
-          partialGain.gain.setValueAtTime(0.0001, startTime);
-          partialGain.gain.exponentialRampToValueAtTime(partial.weight, startTime + 0.012);
-          partialGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration * partial.life);
-          oscillator.connect(partialGain);
-          partialGain.connect(master);
-          oscillator.start(startTime);
-          oscillator.stop(startTime + duration * partial.life + 0.02);
+          partial.detuneCents.forEach((detuneCents) => {
+            const oscillator = audioContext.createOscillator();
+            const partialGain = audioContext.createGain();
+            const detuneRatio = Math.pow(2, detuneCents / 1200);
+            oscillator.type = partial.type;
+            oscillator.frequency.setValueAtTime(frequency * partial.ratio * detuneRatio, startTime);
+            partialGain.gain.setValueAtTime(0.0001, startTime);
+            partialGain.gain.exponentialRampToValueAtTime(
+              partial.weight / partial.detuneCents.length,
+              startTime + 0.01,
+            );
+            partialGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration * partial.life);
+            oscillator.connect(partialGain);
+            partialGain.connect(master);
+            oscillator.start(startTime);
+            oscillator.stop(startTime + duration * partial.life + 0.02);
+          });
         });
         return;
       }
 
-      // Guitar-like pluck using noise excitation through a feedback delay (Karplus-Strong style).
+      // Clean-guitar style: harmonic-rich oscillators with a soft pick transient and fast decay.
       const master = audioContext.createGain();
-      const bodyFilter = audioContext.createBiquadFilter();
-      bodyFilter.type = "bandpass";
-      bodyFilter.frequency.setValueAtTime(Math.min(4200, Math.max(180, frequency * 2.3)), startTime);
-      bodyFilter.Q.setValueAtTime(0.9, startTime);
+      const toneLowpass = audioContext.createBiquadFilter();
+      toneLowpass.type = "lowpass";
+      toneLowpass.frequency.setValueAtTime(Math.min(5200, Math.max(1400, frequency * 6.2)), startTime);
+      toneLowpass.Q.setValueAtTime(0.45, startTime);
+      toneLowpass.frequency.exponentialRampToValueAtTime(
+        Math.min(3000, Math.max(900, frequency * 3.4)),
+        startTime + duration * 0.5,
+      );
+
+      const bodyBand = audioContext.createBiquadFilter();
+      bodyBand.type = "peaking";
+      bodyBand.frequency.setValueAtTime(Math.min(700, Math.max(200, frequency * 1.25)), startTime);
+      bodyBand.Q.setValueAtTime(1.0, startTime);
+      bodyBand.gain.setValueAtTime(3.5, startTime);
 
       master.gain.setValueAtTime(0.0001, startTime);
-      master.gain.exponentialRampToValueAtTime(0.15, startTime + 0.006);
-      master.gain.exponentialRampToValueAtTime(0.045, startTime + duration * 0.28);
+      master.gain.exponentialRampToValueAtTime(0.145, startTime + 0.008);
+      master.gain.exponentialRampToValueAtTime(0.055, startTime + duration * 0.24);
       master.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
 
-      master.connect(bodyFilter);
-      bodyFilter.connect(audioContext.destination);
+      master.connect(toneLowpass);
+      toneLowpass.connect(bodyBand);
+      bodyBand.connect(audioContext.destination);
 
-      const excitation = audioContext.createBufferSource();
-      excitation.buffer = getNoiseBuffer(audioContext);
+      const harmonics = [
+        { ratio: 1.0, weight: 1.0, type: "triangle" as OscillatorType, life: 1.0 },
+        { ratio: 2.0, weight: 0.38, type: "sine" as OscillatorType, life: 0.72 },
+        { ratio: 3.0, weight: 0.2, type: "triangle" as OscillatorType, life: 0.54 },
+        { ratio: 4.0, weight: 0.1, type: "sine" as OscillatorType, life: 0.45 },
+      ];
 
-      const excitationFilter = audioContext.createBiquadFilter();
-      excitationFilter.type = "highpass";
-      excitationFilter.frequency.setValueAtTime(Math.min(2800, Math.max(120, frequency * 1.1)), startTime);
+      harmonics.forEach((partial) => {
+        const oscillator = audioContext.createOscillator();
+        const partialGain = audioContext.createGain();
+        oscillator.type = partial.type;
+        oscillator.frequency.setValueAtTime(frequency * partial.ratio, startTime);
+        partialGain.gain.setValueAtTime(0.0001, startTime);
+        partialGain.gain.exponentialRampToValueAtTime(partial.weight, startTime + 0.01);
+        partialGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration * partial.life);
+        oscillator.connect(partialGain);
+        partialGain.connect(master);
+        oscillator.start(startTime);
+        oscillator.stop(startTime + duration * partial.life + 0.02);
+      });
 
-      const excitationGain = audioContext.createGain();
-      excitationGain.gain.setValueAtTime(0.42, startTime);
-
-      const delay = audioContext.createDelay(1);
-      const delayTime = Math.max(0.0012, 1 / frequency);
-      delay.delayTime.setValueAtTime(delayTime, startTime);
-
-      const feedbackFilter = audioContext.createBiquadFilter();
-      feedbackFilter.type = "lowpass";
-      feedbackFilter.frequency.setValueAtTime(Math.min(4200, Math.max(700, frequency * 4.2)), startTime);
-      feedbackFilter.Q.setValueAtTime(0.25, startTime);
-
-      const feedbackGain = audioContext.createGain();
-      feedbackGain.gain.setValueAtTime(0.93, startTime);
-
-      excitation.connect(excitationFilter);
-      excitationFilter.connect(excitationGain);
-      excitationGain.connect(delay);
-
-      delay.connect(feedbackFilter);
-      feedbackFilter.connect(feedbackGain);
-      feedbackGain.connect(delay);
-      delay.connect(master);
-
-      excitation.start(startTime);
-      excitation.stop(startTime + 0.03);
+      const pickNoise = audioContext.createBufferSource();
+      pickNoise.buffer = getNoiseBuffer(audioContext);
+      const pickFilter = audioContext.createBiquadFilter();
+      pickFilter.type = "highpass";
+      pickFilter.frequency.setValueAtTime(Math.min(3800, Math.max(1600, frequency * 5.5)), startTime);
+      const pickGain = audioContext.createGain();
+      pickGain.gain.setValueAtTime(0.0001, startTime);
+      pickGain.gain.exponentialRampToValueAtTime(0.012, startTime + 0.002);
+      pickGain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.018);
+      pickNoise.connect(pickFilter);
+      pickFilter.connect(pickGain);
+      pickGain.connect(master);
+      pickNoise.start(startTime);
+      pickNoise.stop(startTime + 0.02);
     },
     [getNoiseBuffer],
   );
