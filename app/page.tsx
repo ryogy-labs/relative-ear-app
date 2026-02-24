@@ -14,6 +14,7 @@ type PresetKey = "beginner" | "basic" | "jazzIntro";
 type Language = "en" | "ja";
 type NoteLengthKey = "short" | "medium" | "long";
 type ButtonSizeKey = "large" | "medium" | "small";
+type InstrumentKey = "synth" | "piano" | "guitar";
 type AppTab = "practice" | "stats" | "settings";
 
 type Round = {
@@ -47,6 +48,10 @@ type UiText = {
   descending: string;
   random: string;
   noteLength: string;
+  instrument: string;
+  synth: string;
+  piano: string;
+  guitar: string;
   buttonSize: string;
   large: string;
   small: string;
@@ -104,6 +109,10 @@ const I18N: Record<Language, UiText> = {
     descending: "Descending",
     random: "Random",
     noteLength: "Note Length",
+    instrument: "Instrument",
+    synth: "Synth",
+    piano: "Piano",
+    guitar: "Guitar",
     buttonSize: "Button Size",
     large: "Large",
     small: "Small",
@@ -159,6 +168,10 @@ const I18N: Record<Language, UiText> = {
     descending: "下行",
     random: "ランダム",
     noteLength: "音の長さ",
+    instrument: "音色",
+    synth: "シンセ",
+    piano: "ピアノ",
+    guitar: "ギター",
     buttonSize: "ボタンサイズ",
     large: "大",
     small: "小",
@@ -398,6 +411,18 @@ export default function Home() {
   const [mode, setMode] = useState<TrainingMode>("melodic");
   const [directionSetting, setDirectionSetting] = useState<DirectionSetting>("random");
   const [noteLength, setNoteLength] = useState<NoteLengthKey>("short");
+  const [instrument, setInstrument] = useState<InstrumentKey>(() => {
+    if (typeof window === "undefined") {
+      return "synth";
+    }
+
+    const saved = window.localStorage.getItem("relative-ear.instrument");
+    if (saved === "synth" || saved === "piano" || saved === "guitar") {
+      return saved;
+    }
+
+    return "synth";
+  });
   const [buttonSize, setButtonSize] = useState<ButtonSizeKey>(() => {
     if (typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches) {
       return "medium";
@@ -448,27 +473,91 @@ export default function Home() {
 
   const accuracy = total > 0 ? ((correct / total) * 100).toFixed(1) : "0.0";
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem("relative-ear.instrument", instrument);
+  }, [instrument]);
+
+  const scheduleNote = useCallback(
+    (
+      audioContext: AudioContext,
+      frequency: number,
+      startTime: number,
+      duration: number,
+      selectedInstrument: InstrumentKey,
+    ) => {
+      if (selectedInstrument === "synth") {
+        // Keep Synth exactly the same as the existing behavior.
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(frequency, startTime);
+
+        gain.gain.setValueAtTime(0.0001, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.25, startTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+        oscillator.connect(gain);
+        gain.connect(audioContext.destination);
+
+        oscillator.start(startTime);
+        oscillator.stop(startTime + duration);
+        return;
+      }
+
+      const partials =
+        selectedInstrument === "piano"
+          ? [
+              { ratio: 1, weight: 1.0, type: "sine" as OscillatorType },
+              { ratio: 2, weight: 0.36, type: "triangle" as OscillatorType },
+              { ratio: 3, weight: 0.22, type: "sine" as OscillatorType },
+            ]
+          : [
+              { ratio: 1, weight: 1.0, type: "triangle" as OscillatorType },
+              { ratio: 2, weight: 0.55, type: "sawtooth" as OscillatorType },
+              { ratio: 3, weight: 0.34, type: "triangle" as OscillatorType },
+              { ratio: 4, weight: 0.22, type: "sawtooth" as OscillatorType },
+            ];
+
+      const master = audioContext.createGain();
+      const peak = selectedInstrument === "piano" ? 0.19 : 0.17;
+      const attack = selectedInstrument === "piano" ? 0.02 : 0.008;
+      const decayPoint = selectedInstrument === "piano" ? 0.82 : 0.58;
+
+      master.gain.setValueAtTime(0.0001, startTime);
+      master.gain.exponentialRampToValueAtTime(peak, startTime + attack);
+      master.gain.exponentialRampToValueAtTime(0.0001, startTime + duration * decayPoint);
+      master.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+      master.connect(audioContext.destination);
+
+      partials.forEach((partial) => {
+        const oscillator = audioContext.createOscillator();
+        const partialGain = audioContext.createGain();
+
+        oscillator.type = partial.type;
+        oscillator.frequency.setValueAtTime(frequency * partial.ratio, startTime);
+        partialGain.gain.setValueAtTime(partial.weight, startTime);
+
+        oscillator.connect(partialGain);
+        partialGain.connect(master);
+
+        oscillator.start(startTime);
+        oscillator.stop(startTime + duration);
+      });
+    },
+    [],
+  );
+
   const playSingleNote = async (midi: number) => {
     const duration = NOTE_LENGTHS[noteLength];
     const audioContext = new window.AudioContext();
     await audioContext.resume();
 
     const now = audioContext.currentTime;
-    const oscillator = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-
-    oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(midiToFrequency(midi), now);
-
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.25, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-
-    oscillator.connect(gain);
-    gain.connect(audioContext.destination);
-
-    oscillator.start(now);
-    oscillator.stop(now + duration);
+    scheduleNote(audioContext, midiToFrequency(midi), now, duration, instrument);
 
     setTimeout(() => {
       void audioContext.close();
@@ -570,38 +659,20 @@ export default function Home() {
     const noteDuration = NOTE_LENGTHS[noteLength];
     const gap = 0.15;
 
-    const playNote = (frequency: number, startTime: number, duration: number) => {
-      const oscillator = audioContext.createOscillator();
-      const gain = audioContext.createGain();
-
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(frequency, startTime);
-
-      gain.gain.setValueAtTime(0.0001, startTime);
-      gain.gain.exponentialRampToValueAtTime(0.25, startTime + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
-
-      oscillator.connect(gain);
-      gain.connect(audioContext.destination);
-
-      oscillator.start(startTime);
-      oscillator.stop(startTime + duration);
-    };
-
     const note1Freq = midiToFrequency(round.note1Midi);
     const note2Freq = midiToFrequency(round.note2Midi);
 
     if (mode === "harmony") {
-      playNote(note1Freq, now, noteDuration);
-      playNote(note2Freq, now, noteDuration);
+      scheduleNote(audioContext, note1Freq, now, noteDuration, instrument);
+      scheduleNote(audioContext, note2Freq, now, noteDuration, instrument);
       setTimeout(() => {
         void audioContext.close();
       }, (noteDuration + 0.1) * 1000);
       return;
     }
 
-    playNote(note1Freq, now, noteDuration);
-    playNote(note2Freq, now + noteDuration + gap, noteDuration);
+    scheduleNote(audioContext, note1Freq, now, noteDuration, instrument);
+    scheduleNote(audioContext, note2Freq, now + noteDuration + gap, noteDuration, instrument);
 
     setTimeout(() => {
       void audioContext.close();
@@ -954,6 +1025,45 @@ export default function Home() {
                 }`}
               >
                 {t.long}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.instrument}</h3>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setInstrument("synth")}
+                className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                  instrument === "synth"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.synth}
+              </button>
+              <button
+                type="button"
+                onClick={() => setInstrument("piano")}
+                className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                  instrument === "piano"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.piano}
+              </button>
+              <button
+                type="button"
+                onClick={() => setInstrument("guitar")}
+                className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                  instrument === "guitar"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.guitar}
               </button>
             </div>
           </div>
