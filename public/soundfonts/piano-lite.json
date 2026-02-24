@@ -1,0 +1,30 @@
+{
+  "patch": {
+    "partials": [
+      { "ratio": 1.0, "gain": 1.0, "type": "triangle", "life": 1.0, "detuneCents": [-2.6, 2.6] },
+      { "ratio": 2.01, "gain": 0.45, "type": "sine", "life": 0.82, "detuneCents": [-1.2, 1.2] },
+      { "ratio": 3.04, "gain": 0.24, "type": "triangle", "life": 0.64 },
+      { "ratio": 4.11, "gain": 0.12, "type": "sine", "life": 0.5 }
+    ],
+    "envelope": {
+      "peak": 0.145,
+      "attack": 0.012,
+      "decayTo": 0.05,
+      "decayAt": 0.26,
+      "releaseAt": 1.0
+    },
+    "filters": [
+      { "type": "lowpass", "startHz": 6200, "endHz": 2700, "endAt": 0.55, "q": 0.7 },
+      { "type": "peaking", "startHz": 420, "q": 0.95, "gain": 2.8 }
+    ],
+    "noise": {
+      "enabled": true,
+      "gainPeak": 0.022,
+      "attack": 0.003,
+      "releaseAt": 0.03,
+      "filterType": "bandpass",
+      "filterHz": 4200,
+      "filterQ": 1.3
+    }
+  }
+}

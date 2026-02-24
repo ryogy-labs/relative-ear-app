@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AudioEngine, type InstrumentKey } from "./lib/audioEngine";
 
 type Interval = {
   id: string;
@@ -14,7 +15,6 @@ type PresetKey = "beginner" | "basic" | "jazzIntro";
 type Language = "en" | "ja";
 type NoteLengthKey = "short" | "medium" | "long";
 type ButtonSizeKey = "large" | "medium" | "small";
-type InstrumentKey = "synth" | "piano" | "guitar";
 type AppTab = "practice" | "stats" | "settings";
 
 type Round = {
@@ -82,6 +82,7 @@ type UiText = {
   soundEffects: string;
   on: string;
   off: string;
+  loading: string;
 };
 
 const I18N: Record<Language, UiText> = {
@@ -143,6 +144,7 @@ const I18N: Record<Language, UiText> = {
     soundEffects: "Sound Effects",
     on: "ON",
     off: "OFF",
+    loading: "Loading...",
   },
   ja: {
     title: "音程イヤートレーナー",
@@ -202,6 +204,7 @@ const I18N: Record<Language, UiText> = {
     soundEffects: "効果音",
     on: "ON",
     off: "OFF",
+    loading: "読み込み中...",
   },
 };
 
@@ -312,10 +315,6 @@ function intervalDisplayLabel(intervalId: string, language: Language): string {
   }
 
   return intervalId;
-}
-
-function midiToFrequency(midi: number): number {
-  return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
 function degreeLabelFromRoot(rootMidi: number, targetMidi: number): string {
@@ -439,7 +438,10 @@ export default function Home() {
     createInitialIntervalStats,
   );
   const keyboardScrollRef = useRef<HTMLDivElement | null>(null);
-  const noiseBufferRef = useRef<AudioBuffer | null>(null);
+  const scheduledPlaybackRef = useRef<number[]>([]);
+  const audioEngineRef = useRef<AudioEngine>(new AudioEngine());
+  const [isInstrumentLoading, setIsInstrumentLoading] = useState<boolean>(false);
+  const [instrumentFallbackMessage, setInstrumentFallbackMessage] = useState<string | null>(null);
 
   const t = I18N[language];
   const { ensureContext, playCorrect, playWrong } = useSfx(sfxEnabled);
@@ -476,194 +478,50 @@ export default function Home() {
     window.localStorage.setItem("relative-ear.instrument", instrument);
   }, [instrument]);
 
-  const getNoiseBuffer = useCallback((audioContext: AudioContext) => {
-    if (!noiseBufferRef.current || noiseBufferRef.current.sampleRate !== audioContext.sampleRate) {
-      const length = Math.max(1, Math.floor(audioContext.sampleRate * 2));
-      const buffer = audioContext.createBuffer(1, length, audioContext.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < length; i += 1) {
-        data[i] = Math.random() * 2 - 1;
-      }
-      noiseBufferRef.current = buffer;
-    }
-
-    return noiseBufferRef.current;
+  useEffect(() => {
+    const unsubscribe = audioEngineRef.current.subscribe((status) => {
+      setIsInstrumentLoading(status.isLoading);
+      setInstrumentFallbackMessage(status.fallbackMessage);
+    });
+    return unsubscribe;
   }, []);
 
-  const scheduleNote = useCallback(
-    (
-      audioContext: AudioContext,
-      frequency: number,
-      startTime: number,
-      duration: number,
-      selectedInstrument: InstrumentKey,
-    ) => {
-      if (selectedInstrument === "synth") {
-        // Keep Synth exactly the same as the existing behavior.
-        const oscillator = audioContext.createOscillator();
-        const gain = audioContext.createGain();
-
-        oscillator.type = "sine";
-        oscillator.frequency.setValueAtTime(frequency, startTime);
-
-        gain.gain.setValueAtTime(0.0001, startTime);
-        gain.gain.exponentialRampToValueAtTime(0.25, startTime + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
-
-        oscillator.connect(gain);
-        gain.connect(audioContext.destination);
-
-        oscillator.start(startTime);
-        oscillator.stop(startTime + duration);
+  useEffect(() => {
+    let cancelled = false;
+    const applyInstrument = async () => {
+      if (cancelled) {
         return;
       }
+      await audioEngineRef.current.setInstrument(instrument);
+    };
+    void applyInstrument();
+    return () => {
+      cancelled = true;
+    };
+  }, [instrument]);
 
-      if (selectedInstrument === "piano") {
-        // Piano-like tone: hammer transient + inharmonic partials + slight string-pair detune.
-        const master = audioContext.createGain();
-        const toneFilter = audioContext.createBiquadFilter();
-        toneFilter.type = "lowpass";
-        toneFilter.frequency.setValueAtTime(6200, startTime);
-        toneFilter.frequency.exponentialRampToValueAtTime(2700, startTime + duration * 0.55);
-        toneFilter.Q.setValueAtTime(0.7, startTime);
+  const clearScheduledPlayback = useCallback(() => {
+    scheduledPlaybackRef.current.forEach((timeoutId) => {
+      window.clearTimeout(timeoutId);
+    });
+    scheduledPlaybackRef.current = [];
+  }, []);
 
-        const bodyPeak = audioContext.createBiquadFilter();
-        bodyPeak.type = "peaking";
-        bodyPeak.frequency.setValueAtTime(Math.min(520, Math.max(170, frequency * 1.6)), startTime);
-        bodyPeak.Q.setValueAtTime(0.95, startTime);
-        bodyPeak.gain.setValueAtTime(2.8, startTime);
-
-        master.gain.setValueAtTime(0.0001, startTime);
-        master.gain.exponentialRampToValueAtTime(0.145, startTime + 0.012);
-        master.gain.exponentialRampToValueAtTime(0.052, startTime + duration * 0.24);
-        master.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
-
-        master.connect(toneFilter);
-        toneFilter.connect(bodyPeak);
-        bodyPeak.connect(audioContext.destination);
-
-        const hammerNoise = audioContext.createBufferSource();
-        hammerNoise.buffer = getNoiseBuffer(audioContext);
-        const hammerFilter = audioContext.createBiquadFilter();
-        hammerFilter.type = "bandpass";
-        hammerFilter.frequency.setValueAtTime(Math.min(6400, Math.max(2200, frequency * 5.4)), startTime);
-        hammerFilter.Q.setValueAtTime(1.35, startTime);
-        const hammerGain = audioContext.createGain();
-        hammerGain.gain.setValueAtTime(0.0001, startTime);
-        hammerGain.gain.exponentialRampToValueAtTime(0.024, startTime + 0.003);
-        hammerGain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.03);
-        hammerNoise.connect(hammerFilter);
-        hammerFilter.connect(hammerGain);
-        hammerGain.connect(master);
-        hammerNoise.start(startTime);
-        hammerNoise.stop(startTime + 0.032);
-
-        const partials = [
-          { ratio: 1.0, weight: 1.0, type: "triangle" as OscillatorType, life: 1.0, detuneCents: [-2.8, 2.8] },
-          { ratio: 2.01, weight: 0.46, type: "sine" as OscillatorType, life: 0.82, detuneCents: [-1.4, 1.4] },
-          { ratio: 3.04, weight: 0.25, type: "triangle" as OscillatorType, life: 0.64, detuneCents: [0] },
-          { ratio: 4.11, weight: 0.13, type: "sine" as OscillatorType, life: 0.5, detuneCents: [0] },
-        ];
-
-        partials.forEach((partial) => {
-          partial.detuneCents.forEach((detuneCents) => {
-            const oscillator = audioContext.createOscillator();
-            const partialGain = audioContext.createGain();
-            const detuneRatio = Math.pow(2, detuneCents / 1200);
-            oscillator.type = partial.type;
-            oscillator.frequency.setValueAtTime(frequency * partial.ratio * detuneRatio, startTime);
-            partialGain.gain.setValueAtTime(0.0001, startTime);
-            partialGain.gain.exponentialRampToValueAtTime(
-              partial.weight / partial.detuneCents.length,
-              startTime + 0.01,
-            );
-            partialGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration * partial.life);
-            oscillator.connect(partialGain);
-            partialGain.connect(master);
-            oscillator.start(startTime);
-            oscillator.stop(startTime + duration * partial.life + 0.02);
-          });
-        });
-        return;
-      }
-
-      // Clean-guitar style: harmonic-rich oscillators with a soft pick transient and fast decay.
-      const master = audioContext.createGain();
-      const toneLowpass = audioContext.createBiquadFilter();
-      toneLowpass.type = "lowpass";
-      toneLowpass.frequency.setValueAtTime(Math.min(5200, Math.max(1400, frequency * 6.2)), startTime);
-      toneLowpass.Q.setValueAtTime(0.45, startTime);
-      toneLowpass.frequency.exponentialRampToValueAtTime(
-        Math.min(3000, Math.max(900, frequency * 3.4)),
-        startTime + duration * 0.5,
-      );
-
-      const bodyBand = audioContext.createBiquadFilter();
-      bodyBand.type = "peaking";
-      bodyBand.frequency.setValueAtTime(Math.min(700, Math.max(200, frequency * 1.25)), startTime);
-      bodyBand.Q.setValueAtTime(1.0, startTime);
-      bodyBand.gain.setValueAtTime(3.5, startTime);
-
-      master.gain.setValueAtTime(0.0001, startTime);
-      master.gain.exponentialRampToValueAtTime(0.145, startTime + 0.008);
-      master.gain.exponentialRampToValueAtTime(0.055, startTime + duration * 0.24);
-      master.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
-
-      master.connect(toneLowpass);
-      toneLowpass.connect(bodyBand);
-      bodyBand.connect(audioContext.destination);
-
-      const harmonics = [
-        { ratio: 1.0, weight: 1.0, type: "triangle" as OscillatorType, life: 1.0 },
-        { ratio: 2.0, weight: 0.38, type: "sine" as OscillatorType, life: 0.72 },
-        { ratio: 3.0, weight: 0.2, type: "triangle" as OscillatorType, life: 0.54 },
-        { ratio: 4.0, weight: 0.1, type: "sine" as OscillatorType, life: 0.45 },
-      ];
-
-      harmonics.forEach((partial) => {
-        const oscillator = audioContext.createOscillator();
-        const partialGain = audioContext.createGain();
-        oscillator.type = partial.type;
-        oscillator.frequency.setValueAtTime(frequency * partial.ratio, startTime);
-        partialGain.gain.setValueAtTime(0.0001, startTime);
-        partialGain.gain.exponentialRampToValueAtTime(partial.weight, startTime + 0.01);
-        partialGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration * partial.life);
-        oscillator.connect(partialGain);
-        partialGain.connect(master);
-        oscillator.start(startTime);
-        oscillator.stop(startTime + duration * partial.life + 0.02);
-      });
-
-      const pickNoise = audioContext.createBufferSource();
-      pickNoise.buffer = getNoiseBuffer(audioContext);
-      const pickFilter = audioContext.createBiquadFilter();
-      pickFilter.type = "highpass";
-      pickFilter.frequency.setValueAtTime(Math.min(3800, Math.max(1600, frequency * 5.5)), startTime);
-      const pickGain = audioContext.createGain();
-      pickGain.gain.setValueAtTime(0.0001, startTime);
-      pickGain.gain.exponentialRampToValueAtTime(0.012, startTime + 0.002);
-      pickGain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.018);
-      pickNoise.connect(pickFilter);
-      pickFilter.connect(pickGain);
-      pickGain.connect(master);
-      pickNoise.start(startTime);
-      pickNoise.stop(startTime + 0.02);
+  useEffect(
+    () => () => {
+      clearScheduledPlayback();
     },
-    [getNoiseBuffer],
+    [clearScheduledPlayback],
   );
 
-  const playSingleNote = async (midi: number) => {
-    const duration = NOTE_LENGTHS[noteLength];
-    const audioContext = new window.AudioContext();
-    await audioContext.resume();
-
-    const now = audioContext.currentTime;
-    scheduleNote(audioContext, midiToFrequency(midi), now, duration, instrument);
-
-    setTimeout(() => {
-      void audioContext.close();
-    }, (duration + 0.1) * 1000);
-  };
+  const playSingleNote = useCallback(
+    async (midi: number) => {
+      const duration = NOTE_LENGTHS[noteLength];
+      await ensureContext();
+      await audioEngineRef.current.playNote(midi, duration);
+    },
+    [ensureContext, noteLength],
+  );
 
   const createRound = (): Round | null => {
     if (questionPool.length === 0) {
@@ -747,37 +605,29 @@ export default function Home() {
 
   const playInterval = async () => {
     await ensureContext();
+    clearScheduledPlayback();
 
     const round = getRound();
     if (!round) {
       return;
     }
 
-    const audioContext = new window.AudioContext();
-    await audioContext.resume();
-
-    const now = audioContext.currentTime;
     const noteDuration = NOTE_LENGTHS[noteLength];
     const gap = 0.15;
 
-    const note1Freq = midiToFrequency(round.note1Midi);
-    const note2Freq = midiToFrequency(round.note2Midi);
-
     if (mode === "harmony") {
-      scheduleNote(audioContext, note1Freq, now, noteDuration, instrument);
-      scheduleNote(audioContext, note2Freq, now, noteDuration, instrument);
-      setTimeout(() => {
-        void audioContext.close();
-      }, (noteDuration + 0.1) * 1000);
+      await Promise.all([
+        audioEngineRef.current.playNote(round.note1Midi, noteDuration),
+        audioEngineRef.current.playNote(round.note2Midi, noteDuration),
+      ]);
       return;
     }
 
-    scheduleNote(audioContext, note1Freq, now, noteDuration, instrument);
-    scheduleNote(audioContext, note2Freq, now + noteDuration + gap, noteDuration, instrument);
-
-    setTimeout(() => {
-      void audioContext.close();
-    }, (noteDuration * 2 + gap + 0.1) * 1000);
+    await audioEngineRef.current.playNote(round.note1Midi, noteDuration);
+    const timeoutId = window.setTimeout(() => {
+      void audioEngineRef.current.playNote(round.note2Midi, noteDuration);
+    }, (noteDuration + gap) * 1000);
+    scheduledPlaybackRef.current.push(timeoutId);
   };
 
   const checkAnswer = (selected: Interval) => {
@@ -1167,6 +1017,10 @@ export default function Home() {
                 {t.guitar}
               </button>
             </div>
+            {isInstrumentLoading && <p className="mt-2 text-xs text-[var(--muted)]">{t.loading}</p>}
+            {instrumentFallbackMessage && (
+              <p className="mt-2 text-xs text-[var(--muted)]">{instrumentFallbackMessage}</p>
+            )}
           </div>
 
           <div>
