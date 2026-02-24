@@ -423,12 +423,7 @@ export default function Home() {
 
     return "synth";
   });
-  const [buttonSize, setButtonSize] = useState<ButtonSizeKey>(() => {
-    if (typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches) {
-      return "medium";
-    }
-    return "large";
-  });
+  const [buttonSize, setButtonSize] = useState<ButtonSizeKey>("large");
   const [sfxEnabled, setSfxEnabled] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<AppTab>("practice");
   const [keyboardVisible, setKeyboardVisible] = useState<boolean>(true);
@@ -444,6 +439,7 @@ export default function Home() {
     createInitialIntervalStats,
   );
   const keyboardScrollRef = useRef<HTMLDivElement | null>(null);
+  const noiseBufferRef = useRef<AudioBuffer | null>(null);
 
   const t = I18N[language];
   const { ensureContext, playCorrect, playWrong } = useSfx(sfxEnabled);
@@ -480,6 +476,20 @@ export default function Home() {
     window.localStorage.setItem("relative-ear.instrument", instrument);
   }, [instrument]);
 
+  const getNoiseBuffer = useCallback((audioContext: AudioContext) => {
+    if (!noiseBufferRef.current || noiseBufferRef.current.sampleRate !== audioContext.sampleRate) {
+      const length = Math.max(1, Math.floor(audioContext.sampleRate * 2));
+      const buffer = audioContext.createBuffer(1, length, audioContext.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < length; i += 1) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      noiseBufferRef.current = buffer;
+    }
+
+    return noiseBufferRef.current;
+  }, []);
+
   const scheduleNote = useCallback(
     (
       audioContext: AudioContext,
@@ -508,47 +518,112 @@ export default function Home() {
         return;
       }
 
-      const partials =
-        selectedInstrument === "piano"
-          ? [
-              { ratio: 1, weight: 1.0, type: "sine" as OscillatorType },
-              { ratio: 2, weight: 0.36, type: "triangle" as OscillatorType },
-              { ratio: 3, weight: 0.22, type: "sine" as OscillatorType },
-            ]
-          : [
-              { ratio: 1, weight: 1.0, type: "triangle" as OscillatorType },
-              { ratio: 2, weight: 0.55, type: "sawtooth" as OscillatorType },
-              { ratio: 3, weight: 0.34, type: "triangle" as OscillatorType },
-              { ratio: 4, weight: 0.22, type: "sawtooth" as OscillatorType },
-            ];
+      if (selectedInstrument === "piano") {
+        // Model a piano-like attack/decay: short hammer noise + slightly inharmonic rich partials.
+        const master = audioContext.createGain();
+        const bodyFilter = audioContext.createBiquadFilter();
+        bodyFilter.type = "lowpass";
+        bodyFilter.frequency.setValueAtTime(5600, startTime);
+        bodyFilter.frequency.exponentialRampToValueAtTime(3200, startTime + duration * 0.45);
+        bodyFilter.Q.setValueAtTime(0.65, startTime);
 
+        master.gain.setValueAtTime(0.0001, startTime);
+        master.gain.exponentialRampToValueAtTime(0.16, startTime + 0.016);
+        master.gain.exponentialRampToValueAtTime(0.04, startTime + duration * 0.38);
+        master.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+        master.connect(bodyFilter);
+        bodyFilter.connect(audioContext.destination);
+
+        const hammerNoise = audioContext.createBufferSource();
+        hammerNoise.buffer = getNoiseBuffer(audioContext);
+        const hammerFilter = audioContext.createBiquadFilter();
+        hammerFilter.type = "bandpass";
+        hammerFilter.frequency.setValueAtTime(Math.min(5200, Math.max(2000, frequency * 6)), startTime);
+        hammerFilter.Q.setValueAtTime(1.2, startTime);
+        const hammerGain = audioContext.createGain();
+        hammerGain.gain.setValueAtTime(0.0001, startTime);
+        hammerGain.gain.exponentialRampToValueAtTime(0.05, startTime + 0.004);
+        hammerGain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.035);
+        hammerNoise.connect(hammerFilter);
+        hammerFilter.connect(hammerGain);
+        hammerGain.connect(master);
+        hammerNoise.start(startTime);
+        hammerNoise.stop(startTime + 0.04);
+
+        const partials = [
+          { ratio: 1.0, weight: 1.0, type: "sine" as OscillatorType, life: 1.0 },
+          { ratio: 2.01, weight: 0.44, type: "triangle" as OscillatorType, life: 0.8 },
+          { ratio: 3.03, weight: 0.24, type: "sine" as OscillatorType, life: 0.62 },
+          { ratio: 4.08, weight: 0.14, type: "triangle" as OscillatorType, life: 0.5 },
+        ];
+
+        partials.forEach((partial) => {
+          const oscillator = audioContext.createOscillator();
+          const partialGain = audioContext.createGain();
+          oscillator.type = partial.type;
+          oscillator.frequency.setValueAtTime(frequency * partial.ratio, startTime);
+          partialGain.gain.setValueAtTime(0.0001, startTime);
+          partialGain.gain.exponentialRampToValueAtTime(partial.weight, startTime + 0.012);
+          partialGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration * partial.life);
+          oscillator.connect(partialGain);
+          partialGain.connect(master);
+          oscillator.start(startTime);
+          oscillator.stop(startTime + duration * partial.life + 0.02);
+        });
+        return;
+      }
+
+      // Guitar-like pluck using noise excitation through a feedback delay (Karplus-Strong style).
       const master = audioContext.createGain();
-      const peak = selectedInstrument === "piano" ? 0.19 : 0.17;
-      const attack = selectedInstrument === "piano" ? 0.02 : 0.008;
-      const decayPoint = selectedInstrument === "piano" ? 0.82 : 0.58;
+      const bodyFilter = audioContext.createBiquadFilter();
+      bodyFilter.type = "bandpass";
+      bodyFilter.frequency.setValueAtTime(Math.min(4200, Math.max(180, frequency * 2.3)), startTime);
+      bodyFilter.Q.setValueAtTime(0.9, startTime);
 
       master.gain.setValueAtTime(0.0001, startTime);
-      master.gain.exponentialRampToValueAtTime(peak, startTime + attack);
-      master.gain.exponentialRampToValueAtTime(0.0001, startTime + duration * decayPoint);
+      master.gain.exponentialRampToValueAtTime(0.15, startTime + 0.006);
+      master.gain.exponentialRampToValueAtTime(0.045, startTime + duration * 0.28);
       master.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
-      master.connect(audioContext.destination);
 
-      partials.forEach((partial) => {
-        const oscillator = audioContext.createOscillator();
-        const partialGain = audioContext.createGain();
+      master.connect(bodyFilter);
+      bodyFilter.connect(audioContext.destination);
 
-        oscillator.type = partial.type;
-        oscillator.frequency.setValueAtTime(frequency * partial.ratio, startTime);
-        partialGain.gain.setValueAtTime(partial.weight, startTime);
+      const excitation = audioContext.createBufferSource();
+      excitation.buffer = getNoiseBuffer(audioContext);
 
-        oscillator.connect(partialGain);
-        partialGain.connect(master);
+      const excitationFilter = audioContext.createBiquadFilter();
+      excitationFilter.type = "highpass";
+      excitationFilter.frequency.setValueAtTime(Math.min(2800, Math.max(120, frequency * 1.1)), startTime);
 
-        oscillator.start(startTime);
-        oscillator.stop(startTime + duration);
-      });
+      const excitationGain = audioContext.createGain();
+      excitationGain.gain.setValueAtTime(0.42, startTime);
+
+      const delay = audioContext.createDelay(1);
+      const delayTime = Math.max(0.0012, 1 / frequency);
+      delay.delayTime.setValueAtTime(delayTime, startTime);
+
+      const feedbackFilter = audioContext.createBiquadFilter();
+      feedbackFilter.type = "lowpass";
+      feedbackFilter.frequency.setValueAtTime(Math.min(4200, Math.max(700, frequency * 4.2)), startTime);
+      feedbackFilter.Q.setValueAtTime(0.25, startTime);
+
+      const feedbackGain = audioContext.createGain();
+      feedbackGain.gain.setValueAtTime(0.93, startTime);
+
+      excitation.connect(excitationFilter);
+      excitationFilter.connect(excitationGain);
+      excitationGain.connect(delay);
+
+      delay.connect(feedbackFilter);
+      feedbackFilter.connect(feedbackGain);
+      feedbackGain.connect(delay);
+      delay.connect(master);
+
+      excitation.start(startTime);
+      excitation.stop(startTime + 0.03);
     },
-    [],
+    [getNoiseBuffer],
   );
 
   const playSingleNote = async (midi: number) => {
