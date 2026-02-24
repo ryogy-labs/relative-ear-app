@@ -90,7 +90,7 @@ const I18N: Record<Language, UiText> = {
     beginner: "Easy",
     basic: "Normal",
     jazzIntro: "Hard",
-    maxRange: "Max interval range",
+    maxRange: "Max Interval Range",
     oneOctave: "1 Oct",
     twoOctaves: "2 Oct",
     rangeHelp: "Choose the maximum distance between the two notes.",
@@ -99,7 +99,7 @@ const I18N: Record<Language, UiText> = {
     harmony: "Harmony",
     modeHelp:
       "Harmony:\nTwo notes play together.\nThe lower note is the reference.\n\nMelodic:\nNotes play one after another.\nThe first note is the reference.",
-    direction: "Melodic direction",
+    direction: "Melodic Direction",
     ascending: "Ascending",
     descending: "Descending",
     random: "Random",
@@ -110,7 +110,7 @@ const I18N: Record<Language, UiText> = {
     short: "Short",
     medium: "Medium",
     long: "Long",
-    intervalPool: "Interval pool",
+    intervalPool: "Interval Pool",
     practice: "Practice",
     practiceHelp: "Listen. Feel the distance. Choose the interval.",
     play: "Play",
@@ -831,7 +831,7 @@ export default function Home() {
 
         <div className="mt-4 grid items-start gap-x-6 gap-y-6 md:grid-cols-2">
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.language}</h3>
+            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.language}</h3>
             <div className="mt-2 flex gap-2">
               <button
                 type="button"
@@ -859,7 +859,7 @@ export default function Home() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.soundEffects}</h3>
+            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.soundEffects}</h3>
             <div className="mt-2 flex gap-2">
               <button
                 type="button"
@@ -893,7 +893,7 @@ export default function Home() {
 
         <div className="mt-4 grid items-start gap-x-6 gap-y-6 md:grid-cols-2">
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.presets}</h3>
+            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.presets}</h3>
             <div className="mt-2 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -920,7 +920,7 @@ export default function Home() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.noteLength}</h3>
+            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.noteLength}</h3>
             <div className="mt-2 flex gap-2">
               <button
                 type="button"
@@ -959,7 +959,7 @@ export default function Home() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.buttonSize}</h3>
+            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.buttonSize}</h3>
             <div className="mt-2 flex gap-2">
               <button
                 type="button"
@@ -1004,7 +1004,7 @@ export default function Home() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.maxRange}</h3>
+            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.maxRange}</h3>
             <div className="mt-2 flex gap-2">
               <button
                 type="button"
@@ -1033,7 +1033,7 @@ export default function Home() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.direction}</h3>
+            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.direction}</h3>
             <div className="mt-2 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -1075,7 +1075,7 @@ export default function Home() {
           </div>
 
           <div className="md:col-span-2">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.mode}</h3>
+            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.mode}</h3>
             <div className="mt-2 flex gap-2">
               <button
                 type="button"
@@ -1105,7 +1105,7 @@ export default function Home() {
         </div>
 
         <div className="mt-6">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.intervalPool}</h3>
+          <h3 className="text-sm font-semibold text-[var(--muted)]">{t.intervalPool}</h3>
           <div className={`mt-2 grid ${answerGridColumnsClass} gap-2`}>
             {INTERVALS.map((interval) => {
               const isSelected = selectedIntervalIds.includes(interval.id);
@@ -1334,15 +1334,15 @@ export default function Home() {
         <h2 className="text-xl font-semibold">{t.stats}</h2>
         <div className="mt-4 grid grid-cols-3 gap-3 text-center">
           <div className="rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3">
-            <div className="text-xs uppercase tracking-wide text-[var(--muted)]">{t.total}</div>
+            <div className="text-xs text-[var(--muted)]">{t.total}</div>
             <div className="text-2xl font-bold">{total}</div>
           </div>
           <div className="rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3">
-            <div className="text-xs uppercase tracking-wide text-[var(--muted)]">{t.correct}</div>
+            <div className="text-xs text-[var(--muted)]">{t.correct}</div>
             <div className="text-2xl font-bold">{correct}</div>
           </div>
           <div className="rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3">
-            <div className="text-xs uppercase tracking-wide text-[var(--muted)]">{t.accuracy}</div>
+            <div className="text-xs text-[var(--muted)]">{t.accuracy}</div>
             <div className="text-2xl font-bold">{accuracy}%</div>
           </div>
         </div>
