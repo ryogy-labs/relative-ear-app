@@ -13,6 +13,7 @@ type ResolvedDirection = "ascending" | "descending";
 type PresetKey = "beginner" | "basic" | "jazzIntro";
 type Language = "en" | "ja";
 type NoteLengthKey = "short" | "medium" | "long";
+type ButtonSizeKey = "large" | "medium" | "small";
 type AppTab = "practice" | "stats" | "settings";
 
 type Round = {
@@ -46,6 +47,9 @@ type UiText = {
   descending: string;
   random: string;
   noteLength: string;
+  buttonSize: string;
+  large: string;
+  small: string;
   short: string;
   medium: string;
   long: string;
@@ -100,6 +104,9 @@ const I18N: Record<Language, UiText> = {
     descending: "Descending",
     random: "Random",
     noteLength: "Note Length",
+    buttonSize: "Button Size",
+    large: "Large",
+    small: "Small",
     short: "Short",
     medium: "Medium",
     long: "Long",
@@ -152,6 +159,9 @@ const I18N: Record<Language, UiText> = {
     descending: "下行",
     random: "ランダム",
     noteLength: "音の長さ",
+    buttonSize: "ボタンサイズ",
+    large: "大",
+    small: "小",
     short: "短い",
     medium: "中くらい",
     long: "長い",
@@ -388,6 +398,12 @@ export default function Home() {
   const [mode, setMode] = useState<TrainingMode>("melodic");
   const [directionSetting, setDirectionSetting] = useState<DirectionSetting>("random");
   const [noteLength, setNoteLength] = useState<NoteLengthKey>("short");
+  const [buttonSize, setButtonSize] = useState<ButtonSizeKey>(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches) {
+      return "medium";
+    }
+    return "large";
+  });
   const [sfxEnabled, setSfxEnabled] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<AppTab>("practice");
   const [keyboardVisible, setKeyboardVisible] = useState<boolean>(true);
@@ -674,8 +690,14 @@ export default function Home() {
   };
 
   const buttonClass = (intervalId: string): string => {
+    const sizeClass =
+      buttonSize === "large"
+        ? "px-4 py-3 text-sm"
+        : buttonSize === "medium"
+          ? "px-3 py-2.5 text-sm"
+          : "px-3 py-2 text-sm";
     const base =
-      "rounded-md border border-[var(--border)] px-4 py-2 font-medium transition disabled:cursor-not-allowed disabled:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--card)]";
+      `rounded-md border border-[var(--border)] font-medium transition disabled:cursor-not-allowed disabled:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--card)] ${sizeClass}`;
 
     if (!answered || !currentRound) {
       return `${base} hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]`;
@@ -791,6 +813,9 @@ export default function Home() {
 
     return "rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-semibold text-[var(--text)]";
   };
+
+  const answerGridColumnsClass =
+    buttonSize === "large" ? "grid-cols-2" : buttonSize === "medium" ? "grid-cols-3" : "grid-cols-4";
   const practiceControlButtonBase =
     "rounded-md px-5 py-3 text-sm font-semibold leading-5 transition disabled:cursor-not-allowed disabled:opacity-40";
 
@@ -934,6 +959,51 @@ export default function Home() {
           </div>
 
           <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.buttonSize}</h3>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setButtonSize("large");
+                }}
+                className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                  buttonSize === "large"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.large}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setButtonSize("medium");
+                }}
+                className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                  buttonSize === "medium"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.medium}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setButtonSize("small");
+                }}
+                className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                  buttonSize === "small"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.small}
+              </button>
+            </div>
+          </div>
+
+          <div>
             <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.maxRange}</h3>
             <div className="mt-2 flex gap-2">
               <button
@@ -1036,7 +1106,7 @@ export default function Home() {
 
         <div className="mt-6">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{t.intervalPool}</h3>
-          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          <div className={`mt-2 grid ${answerGridColumnsClass} gap-2`}>
             {INTERVALS.map((interval) => {
               const isSelected = selectedIntervalIds.includes(interval.id);
 
@@ -1108,7 +1178,7 @@ export default function Home() {
         {questionPool.length === 0 ? (
           <p className="mt-5 rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3 text-sm">{t.selectOne}</p>
         ) : (
-          <div className={`${resultStatus !== "idle" ? "mt-2" : "mt-6"} grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4`}>
+          <div className={`${resultStatus !== "idle" ? "mt-2" : "mt-6"} grid ${answerGridColumnsClass} gap-3`}>
             {questionPool.map((interval) => (
               <button
                 key={interval.id}
