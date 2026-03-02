@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AudioEngine, type InstrumentKey, type SampleStatus } from "./lib/audioEngine";
 
 type Interval = {
   id: string;
@@ -47,6 +48,10 @@ type UiText = {
   descending: string;
   random: string;
   noteLength: string;
+  instrument: string;
+  synth: string;
+  piano: string;
+  guitar: string;
   buttonSize: string;
   large: string;
   small: string;
@@ -77,6 +82,11 @@ type UiText = {
   soundEffects: string;
   on: string;
   off: string;
+  loading: string;
+  downloading: string;
+  sampleReady: string;
+  creditsTitle: string;
+  creditsText: string;
 };
 
 const I18N: Record<Language, UiText> = {
@@ -104,6 +114,10 @@ const I18N: Record<Language, UiText> = {
     descending: "Descending",
     random: "Random",
     noteLength: "Note Length",
+    instrument: "Instrument",
+    synth: "Synth",
+    piano: "Piano",
+    guitar: "Guitar",
     buttonSize: "Button Size",
     large: "Large",
     small: "Small",
@@ -134,6 +148,12 @@ const I18N: Record<Language, UiText> = {
     soundEffects: "Sound Effects",
     on: "ON",
     off: "OFF",
+    loading: "Loading...",
+    downloading: "Downloading...",
+    sampleReady: "Ready",
+    creditsTitle: "Credits",
+    creditsText:
+      "Piano and Guitar sounds use the FluidR3 soundfont by Frank Wen, licensed under Creative Commons Attribution 3.0 (CC BY 3.0).",
   },
   ja: {
     title: "音程イヤートレーナー",
@@ -159,6 +179,10 @@ const I18N: Record<Language, UiText> = {
     descending: "下行",
     random: "ランダム",
     noteLength: "音の長さ",
+    instrument: "音色",
+    synth: "シンセ",
+    piano: "ピアノ",
+    guitar: "ギター",
     buttonSize: "ボタンサイズ",
     large: "大",
     small: "小",
@@ -189,6 +213,12 @@ const I18N: Record<Language, UiText> = {
     soundEffects: "効果音",
     on: "ON",
     off: "OFF",
+    loading: "読み込み中...",
+    downloading: "ダウンロード中...",
+    sampleReady: "準備完了",
+    creditsTitle: "クレジット",
+    creditsText:
+      "ピアノ・ギター音源は Frank Wen 氏による FluidR3 サウンドフォント（CC BY 3.0）を使用しています。",
   },
 };
 
@@ -301,10 +331,6 @@ function intervalDisplayLabel(intervalId: string, language: Language): string {
   return intervalId;
 }
 
-function midiToFrequency(midi: number): number {
-  return 440 * Math.pow(2, (midi - 69) / 12);
-}
-
 function degreeLabelFromRoot(rootMidi: number, targetMidi: number): string {
   const diff = ((targetMidi - rootMidi) % 12 + 12) % 12;
   const labels = ["R", "b2", "2", "b3", "3", "4", "b5", "5", "#5", "6", "b7", "7"];
@@ -398,12 +424,19 @@ export default function Home() {
   const [mode, setMode] = useState<TrainingMode>("melodic");
   const [directionSetting, setDirectionSetting] = useState<DirectionSetting>("random");
   const [noteLength, setNoteLength] = useState<NoteLengthKey>("short");
-  const [buttonSize, setButtonSize] = useState<ButtonSizeKey>(() => {
-    if (typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches) {
-      return "medium";
+  const [instrument, setInstrument] = useState<InstrumentKey>(() => {
+    if (typeof window === "undefined") {
+      return "synth";
     }
-    return "large";
+
+    const saved = window.localStorage.getItem("relative-ear.instrument");
+    if (saved === "synth" || saved === "piano" || saved === "guitar") {
+      return saved;
+    }
+
+    return "synth";
   });
+  const [buttonSize, setButtonSize] = useState<ButtonSizeKey>("large");
   const [sfxEnabled, setSfxEnabled] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<AppTab>("practice");
   const [keyboardVisible, setKeyboardVisible] = useState<boolean>(true);
@@ -419,6 +452,16 @@ export default function Home() {
     createInitialIntervalStats,
   );
   const keyboardScrollRef = useRef<HTMLDivElement | null>(null);
+  const scheduledPlaybackRef = useRef<number[]>([]);
+  const audioEngineRef = useRef<AudioEngine>(new AudioEngine());
+  const [instrumentFallbackMessage, setInstrumentFallbackMessage] = useState<string | null>(null);
+  const [sampleStatus, setSampleStatus] = useState<Record<"piano" | "guitar", SampleStatus>>({
+    piano: "idle",
+    guitar: "idle",
+  });
+
+  // TODO: Replace with actual IAP check when integrating Pro tier purchases
+  const isPro = true;
 
   const t = I18N[language];
   const { ensureContext, playCorrect, playWrong } = useSfx(sfxEnabled);
@@ -448,32 +491,61 @@ export default function Home() {
 
   const accuracy = total > 0 ? ((correct / total) * 100).toFixed(1) : "0.0";
 
-  const playSingleNote = async (midi: number) => {
-    const duration = NOTE_LENGTHS[noteLength];
-    const audioContext = new window.AudioContext();
-    await audioContext.resume();
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem("relative-ear.instrument", instrument);
+  }, [instrument]);
 
-    const now = audioContext.currentTime;
-    const oscillator = audioContext.createOscillator();
-    const gain = audioContext.createGain();
+  useEffect(() => {
+    const unsubscribe = audioEngineRef.current.subscribe((status) => {
+      setInstrumentFallbackMessage(status.fallbackMessage);
+      setSampleStatus(status.sampleStatus);
+    });
+    return unsubscribe;
+  }, []);
 
-    oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(midiToFrequency(midi), now);
+  useEffect(() => {
+    audioEngineRef.current.setProStatus(isPro);
+  }, [isPro]);
 
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.25, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+  useEffect(() => {
+    let cancelled = false;
+    const applyInstrument = async () => {
+      if (cancelled) {
+        return;
+      }
+      await audioEngineRef.current.setInstrument(instrument);
+    };
+    void applyInstrument();
+    return () => {
+      cancelled = true;
+    };
+  }, [instrument]);
 
-    oscillator.connect(gain);
-    gain.connect(audioContext.destination);
+  const clearScheduledPlayback = useCallback(() => {
+    scheduledPlaybackRef.current.forEach((timeoutId) => {
+      window.clearTimeout(timeoutId);
+    });
+    scheduledPlaybackRef.current = [];
+  }, []);
 
-    oscillator.start(now);
-    oscillator.stop(now + duration);
+  useEffect(
+    () => () => {
+      clearScheduledPlayback();
+    },
+    [clearScheduledPlayback],
+  );
 
-    setTimeout(() => {
-      void audioContext.close();
-    }, (duration + 0.1) * 1000);
-  };
+  const playSingleNote = useCallback(
+    async (midi: number) => {
+      const duration = NOTE_LENGTHS[noteLength];
+      await ensureContext();
+      await audioEngineRef.current.playNote(midi, duration);
+    },
+    [ensureContext, noteLength],
+  );
 
   const createRound = (): Round | null => {
     if (questionPool.length === 0) {
@@ -557,55 +629,29 @@ export default function Home() {
 
   const playInterval = async () => {
     await ensureContext();
+    clearScheduledPlayback();
 
     const round = getRound();
     if (!round) {
       return;
     }
 
-    const audioContext = new window.AudioContext();
-    await audioContext.resume();
-
-    const now = audioContext.currentTime;
     const noteDuration = NOTE_LENGTHS[noteLength];
     const gap = 0.15;
 
-    const playNote = (frequency: number, startTime: number, duration: number) => {
-      const oscillator = audioContext.createOscillator();
-      const gain = audioContext.createGain();
-
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(frequency, startTime);
-
-      gain.gain.setValueAtTime(0.0001, startTime);
-      gain.gain.exponentialRampToValueAtTime(0.25, startTime + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
-
-      oscillator.connect(gain);
-      gain.connect(audioContext.destination);
-
-      oscillator.start(startTime);
-      oscillator.stop(startTime + duration);
-    };
-
-    const note1Freq = midiToFrequency(round.note1Midi);
-    const note2Freq = midiToFrequency(round.note2Midi);
-
     if (mode === "harmony") {
-      playNote(note1Freq, now, noteDuration);
-      playNote(note2Freq, now, noteDuration);
-      setTimeout(() => {
-        void audioContext.close();
-      }, (noteDuration + 0.1) * 1000);
+      await Promise.all([
+        audioEngineRef.current.playNote(round.note1Midi, noteDuration),
+        audioEngineRef.current.playNote(round.note2Midi, noteDuration),
+      ]);
       return;
     }
 
-    playNote(note1Freq, now, noteDuration);
-    playNote(note2Freq, now + noteDuration + gap, noteDuration);
-
-    setTimeout(() => {
-      void audioContext.close();
-    }, (noteDuration * 2 + gap + 0.1) * 1000);
+    await audioEngineRef.current.playNote(round.note1Midi, noteDuration);
+    const timeoutId = window.setTimeout(() => {
+      void audioEngineRef.current.playNote(round.note2Midi, noteDuration);
+    }, (noteDuration + gap) * 1000);
+    scheduledPlaybackRef.current.push(timeoutId);
   };
 
   const checkAnswer = (selected: Interval) => {
@@ -959,6 +1005,54 @@ export default function Home() {
           </div>
 
           <div>
+            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.instrument}</h3>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setInstrument("synth")}
+                className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                  instrument === "synth"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.synth}
+              </button>
+              <button
+                type="button"
+                onClick={() => setInstrument("piano")}
+                className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                  instrument === "piano"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.piano}
+              </button>
+              <button
+                type="button"
+                onClick={() => setInstrument("guitar")}
+                className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                  instrument === "guitar"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.guitar}
+              </button>
+            </div>
+            {(instrument === "piano" || instrument === "guitar") && (
+              <p className="mt-2 text-xs text-[var(--muted)]">
+                {sampleStatus[instrument] === "downloading" && t.downloading}
+                {sampleStatus[instrument] === "ready" && t.sampleReady}
+              </p>
+            )}
+            {instrumentFallbackMessage && (
+              <p className="mt-2 text-xs text-[var(--muted)]">{instrumentFallbackMessage}</p>
+            )}
+          </div>
+
+          <div>
             <h3 className="text-sm font-semibold text-[var(--muted)]">{t.buttonSize}</h3>
             <div className="mt-2 flex gap-2">
               <button
@@ -1128,6 +1222,11 @@ export default function Home() {
             })}
           </div>
         </div>
+            </section>
+
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
+              <h2 className="text-xl font-semibold">{t.creditsTitle}</h2>
+              <p className="mt-3 text-sm text-[var(--muted)]">{t.creditsText}</p>
             </section>
           </>
         )}
