@@ -1,58 +1,32 @@
+import { instrument as loadSoundfont, type Player } from "soundfont-player";
+
 export type InstrumentKey = "synth" | "piano" | "guitar";
+export type SampleStatus = "idle" | "downloading" | "ready" | "error";
 
-type PartialSpec = {
-  ratio: number;
-  gain: number;
-  type: OscillatorType;
-  detuneCents?: number[];
-  life?: number;
-};
-
-type EnvelopeSpec = {
-  peak: number;
-  attack: number;
-  decayTo: number;
-  decayAt: number;
-  releaseAt: number;
-};
-
-type FilterSpec = {
-  type: BiquadFilterType;
-  startHz: number;
-  endHz?: number;
-  endAt?: number;
-  q?: number;
-  gain?: number;
-};
-
-type NoiseSpec = {
-  enabled: boolean;
-  gainPeak: number;
-  attack: number;
-  releaseAt: number;
-  filterType: BiquadFilterType;
-  filterHz: number;
-  filterQ?: number;
-};
-
-type SoundfontPatch = {
-  partials: PartialSpec[];
-  envelope: EnvelopeSpec;
-  filters?: FilterSpec[];
-  noise?: NoiseSpec;
-};
+type SampleInstrument = "piano" | "guitar";
 
 type EngineStatus = {
   isLoading: boolean;
   fallbackMessage: string | null;
   activeInstrument: InstrumentKey;
+  sampleStatus: Record<SampleInstrument, SampleStatus>;
 };
 
 type EngineListener = (status: EngineStatus) => void;
 
-type SoundfontResponse = {
-  patch: SoundfontPatch;
-};
+// Maps our instrument keys to FluidR3_GM soundfont instrument names
+const SOUNDFONT_NAMES = {
+  piano: "acoustic_grand_piano",
+  guitar: "acoustic_guitar_nylon",
+} as const;
+
+// Flat-notation note names matching gleitz soundfont file keys
+const NOTE_NAMES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"] as const;
+
+function midiToNoteName(midi: number): string {
+  const octave = Math.floor(midi / 12) - 1;
+  return `${NOTE_NAMES[midi % 12]}${octave}`;
+}
 
 function midiToFrequency(midi: number): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
@@ -62,10 +36,12 @@ function isMidiValue(value: number): boolean {
   return Number.isInteger(value) && value >= 0 && value <= 127;
 }
 
+function freqToMidi(freq: number): number {
+  return Math.round(69 + 12 * Math.log2(freq / 440));
+}
+
 export class AudioEngine {
   private audioContext: AudioContext | null = null;
-
-  private noiseBuffer: AudioBuffer | null = null;
 
   private selectedInstrument: InstrumentKey = "synth";
 
@@ -75,7 +51,15 @@ export class AudioEngine {
 
   private fallbackMessage: string | null = null;
 
-  private readonly patches = new Map<InstrumentKey, SoundfontPatch>();
+  // TODO: Replace with actual IAP check when integrating Pro tier purchases
+  private isPro = false;
+
+  private readonly sfPlayers = new Map<SampleInstrument, Player>();
+
+  private readonly sampleStatuses: Record<SampleInstrument, SampleStatus> = {
+    piano: "idle",
+    guitar: "idle",
+  };
 
   private readonly listeners = new Set<EngineListener>();
 
@@ -99,6 +83,7 @@ export class AudioEngine {
       isLoading: this.loading,
       fallbackMessage: this.fallbackMessage,
       activeInstrument: this.activeInstrument,
+      sampleStatus: { ...this.sampleStatuses },
     };
   }
 
@@ -114,17 +99,9 @@ export class AudioEngine {
     return this.audioContext;
   }
 
-  private getNoiseBuffer(context: AudioContext): AudioBuffer {
-    if (!this.noiseBuffer || this.noiseBuffer.sampleRate !== context.sampleRate) {
-      const length = Math.max(1, Math.floor(context.sampleRate * 2));
-      const buffer = context.createBuffer(1, length, context.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < length; i += 1) {
-        data[i] = Math.random() * 2 - 1;
-      }
-      this.noiseBuffer = buffer;
-    }
-    return this.noiseBuffer;
+  /** Call this whenever the user's Pro status changes (e.g. after IAP restore). */
+  setProStatus(isPro: boolean): void {
+    this.isPro = isPro;
   }
 
   async setInstrument(instrument: InstrumentKey): Promise<void> {
@@ -137,7 +114,16 @@ export class AudioEngine {
       return;
     }
 
-    if (this.patches.has(instrument)) {
+    // Non-Pro users cannot download or use sample instruments
+    if (!this.isPro) {
+      this.activeInstrument = "synth";
+      this.fallbackMessage = null;
+      this.emit();
+      return;
+    }
+
+    // Already loaded — activate immediately
+    if (this.sfPlayers.has(instrument)) {
       this.activeInstrument = instrument;
       this.fallbackMessage = null;
       this.emit();
@@ -146,23 +132,28 @@ export class AudioEngine {
 
     this.loading = true;
     this.fallbackMessage = null;
+    this.sampleStatuses[instrument] = "downloading";
     this.emit();
 
     try {
-      const response = await fetch(`/soundfonts/${instrument}-lite.json`);
-      if (!response.ok) {
-        throw new Error(`Failed to load ${instrument} soundfont`);
+      const context = this.getAudioContext();
+      const player = await loadSoundfont(context, SOUNDFONT_NAMES[instrument], {
+        soundfont: "FluidR3_GM",
+        format: "mp3",
+      });
+      this.sfPlayers.set(instrument, player);
+      this.sampleStatuses[instrument] = "ready";
+      // Only switch active instrument if the user hasn't changed their mind
+      if (this.selectedInstrument === instrument) {
+        this.activeInstrument = instrument;
+        this.fallbackMessage = null;
       }
-      const data = (await response.json()) as SoundfontResponse;
-      if (!data?.patch?.partials?.length) {
-        throw new Error(`Invalid ${instrument} soundfont payload`);
-      }
-      this.patches.set(instrument, data.patch);
-      this.activeInstrument = instrument;
-      this.fallbackMessage = null;
     } catch {
-      this.activeInstrument = "synth";
-      this.fallbackMessage = "Instrument audio failed to load. Falling back to Synth.";
+      this.sampleStatuses[instrument] = "error";
+      if (this.selectedInstrument === instrument) {
+        this.activeInstrument = "synth";
+        this.fallbackMessage = "Instrument audio failed to load. Falling back to Synth.";
+      }
     } finally {
       this.loading = false;
       this.emit();
@@ -172,105 +163,36 @@ export class AudioEngine {
   async playNote(midiOrFreq: number, durationSeconds: number, volume = 1): Promise<void> {
     await this.init();
     const context = this.getAudioContext();
-    const frequency = isMidiValue(midiOrFreq) ? midiToFrequency(midiOrFreq) : midiOrFreq;
     const now = context.currentTime;
 
-    if (this.activeInstrument === "synth") {
-      // Keep Synth exactly the same as the previous behavior.
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(frequency, now);
-
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.25 * volume, now + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + durationSeconds);
-
-      oscillator.connect(gain);
-      gain.connect(context.destination);
-
-      oscillator.start(now);
-      oscillator.stop(now + durationSeconds);
-      return;
-    }
-
-    const patch = this.patches.get(this.activeInstrument);
-    if (!patch) {
+    if (this.activeInstrument !== "synth") {
+      const player = this.sfPlayers.get(this.activeInstrument as SampleInstrument);
+      if (player) {
+        const midi = isMidiValue(midiOrFreq) ? midiOrFreq : freqToMidi(midiOrFreq);
+        player.play(midiToNoteName(midi), now, { duration: durationSeconds, gain: volume * 0.5 });
+        return;
+      }
+      // Player missing — fall through to synth
       this.activeInstrument = "synth";
       this.emit();
-      return this.playNote(midiOrFreq, durationSeconds, volume);
     }
 
-    const master = context.createGain();
-    const envelope = patch.envelope;
-    master.gain.setValueAtTime(0.0001, now);
-    master.gain.exponentialRampToValueAtTime(envelope.peak * volume, now + envelope.attack);
-    master.gain.exponentialRampToValueAtTime(envelope.decayTo * volume, now + durationSeconds * envelope.decayAt);
-    master.gain.exponentialRampToValueAtTime(0.0001, now + durationSeconds * envelope.releaseAt);
+    // Synth: simple sine wave with exponential envelope
+    const frequency = isMidiValue(midiOrFreq) ? midiToFrequency(midiOrFreq) : midiOrFreq;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
 
-    let chain: AudioNode = master;
-    (patch.filters ?? []).forEach((filterSpec) => {
-      const filter = context.createBiquadFilter();
-      filter.type = filterSpec.type;
-      filter.frequency.setValueAtTime(filterSpec.startHz, now);
-      if (filterSpec.endHz && filterSpec.endAt) {
-        filter.frequency.exponentialRampToValueAtTime(filterSpec.endHz, now + durationSeconds * filterSpec.endAt);
-      }
-      if (typeof filterSpec.q === "number") {
-        filter.Q.setValueAtTime(filterSpec.q, now);
-      }
-      if (typeof filterSpec.gain === "number") {
-        filter.gain.setValueAtTime(filterSpec.gain, now);
-      }
-      chain.connect(filter);
-      chain = filter;
-    });
-    chain.connect(context.destination);
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(frequency, now);
 
-    patch.partials.forEach((partial) => {
-      const detunes = partial.detuneCents && partial.detuneCents.length > 0 ? partial.detuneCents : [0];
-      detunes.forEach((detuneCents) => {
-        const oscillator = context.createOscillator();
-        const partialGain = context.createGain();
-        const detuneRatio = Math.pow(2, detuneCents / 1200);
-        const life = partial.life ?? 1;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.25 * volume, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + durationSeconds);
 
-        oscillator.type = partial.type;
-        oscillator.frequency.setValueAtTime(frequency * partial.ratio * detuneRatio, now);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
 
-        partialGain.gain.setValueAtTime(0.0001, now);
-        partialGain.gain.exponentialRampToValueAtTime(partial.gain / detunes.length, now + 0.01);
-        partialGain.gain.exponentialRampToValueAtTime(0.0001, now + durationSeconds * life);
-
-        oscillator.connect(partialGain);
-        partialGain.connect(master);
-        oscillator.start(now);
-        oscillator.stop(now + durationSeconds * life + 0.02);
-      });
-    });
-
-    if (patch.noise?.enabled) {
-      const noise = context.createBufferSource();
-      const noiseGain = context.createGain();
-      const noiseFilter = context.createBiquadFilter();
-      noise.buffer = this.getNoiseBuffer(context);
-
-      noiseFilter.type = patch.noise.filterType;
-      noiseFilter.frequency.setValueAtTime(patch.noise.filterHz, now);
-      if (patch.noise.filterQ) {
-        noiseFilter.Q.setValueAtTime(patch.noise.filterQ, now);
-      }
-
-      noiseGain.gain.setValueAtTime(0.0001, now);
-      noiseGain.gain.exponentialRampToValueAtTime(patch.noise.gainPeak * volume, now + patch.noise.attack);
-      noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + patch.noise.releaseAt);
-
-      noise.connect(noiseFilter);
-      noiseFilter.connect(noiseGain);
-      noiseGain.connect(master);
-      noise.start(now);
-      noise.stop(now + patch.noise.releaseAt + 0.005);
-    }
+    oscillator.start(now);
+    oscillator.stop(now + durationSeconds);
   }
 }

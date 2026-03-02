@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AudioEngine, type InstrumentKey } from "./lib/audioEngine";
+import { AudioEngine, type InstrumentKey, type SampleStatus } from "./lib/audioEngine";
 
 type Interval = {
   id: string;
@@ -83,6 +83,10 @@ type UiText = {
   on: string;
   off: string;
   loading: string;
+  downloading: string;
+  sampleReady: string;
+  creditsTitle: string;
+  creditsText: string;
 };
 
 const I18N: Record<Language, UiText> = {
@@ -145,6 +149,11 @@ const I18N: Record<Language, UiText> = {
     on: "ON",
     off: "OFF",
     loading: "Loading...",
+    downloading: "Downloading...",
+    sampleReady: "Ready",
+    creditsTitle: "Credits",
+    creditsText:
+      "Piano and Guitar sounds use the FluidR3 soundfont by Frank Wen, licensed under Creative Commons Attribution 3.0 (CC BY 3.0).",
   },
   ja: {
     title: "音程イヤートレーナー",
@@ -205,6 +214,11 @@ const I18N: Record<Language, UiText> = {
     on: "ON",
     off: "OFF",
     loading: "読み込み中...",
+    downloading: "ダウンロード中...",
+    sampleReady: "準備完了",
+    creditsTitle: "クレジット",
+    creditsText:
+      "ピアノ・ギター音源は Frank Wen 氏による FluidR3 サウンドフォント（CC BY 3.0）を使用しています。",
   },
 };
 
@@ -440,8 +454,14 @@ export default function Home() {
   const keyboardScrollRef = useRef<HTMLDivElement | null>(null);
   const scheduledPlaybackRef = useRef<number[]>([]);
   const audioEngineRef = useRef<AudioEngine>(new AudioEngine());
-  const [isInstrumentLoading, setIsInstrumentLoading] = useState<boolean>(false);
   const [instrumentFallbackMessage, setInstrumentFallbackMessage] = useState<string | null>(null);
+  const [sampleStatus, setSampleStatus] = useState<Record<"piano" | "guitar", SampleStatus>>({
+    piano: "idle",
+    guitar: "idle",
+  });
+
+  // TODO: Replace with actual IAP check when integrating Pro tier purchases
+  const isPro = true;
 
   const t = I18N[language];
   const { ensureContext, playCorrect, playWrong } = useSfx(sfxEnabled);
@@ -480,11 +500,15 @@ export default function Home() {
 
   useEffect(() => {
     const unsubscribe = audioEngineRef.current.subscribe((status) => {
-      setIsInstrumentLoading(status.isLoading);
       setInstrumentFallbackMessage(status.fallbackMessage);
+      setSampleStatus(status.sampleStatus);
     });
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    audioEngineRef.current.setProStatus(isPro);
+  }, [isPro]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1017,7 +1041,12 @@ export default function Home() {
                 {t.guitar}
               </button>
             </div>
-            {isInstrumentLoading && <p className="mt-2 text-xs text-[var(--muted)]">{t.loading}</p>}
+            {(instrument === "piano" || instrument === "guitar") && (
+              <p className="mt-2 text-xs text-[var(--muted)]">
+                {sampleStatus[instrument] === "downloading" && t.downloading}
+                {sampleStatus[instrument] === "ready" && t.sampleReady}
+              </p>
+            )}
             {instrumentFallbackMessage && (
               <p className="mt-2 text-xs text-[var(--muted)]">{instrumentFallbackMessage}</p>
             )}
@@ -1193,6 +1222,11 @@ export default function Home() {
             })}
           </div>
         </div>
+            </section>
+
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
+              <h2 className="text-xl font-semibold">{t.creditsTitle}</h2>
+              <p className="mt-3 text-sm text-[var(--muted)]">{t.creditsText}</p>
             </section>
           </>
         )}
