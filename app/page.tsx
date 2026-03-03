@@ -384,8 +384,8 @@ function useSfx(enabled: boolean) {
       }
 
       const now = audioContext.currentTime;
-      playTone(audioContext, 880, now, 0.09, "sine", 0.3);
-      playTone(audioContext, 1174.66, now + 0.1, 0.12, "sine", 0.33);
+      playTone(audioContext, 880, now, 0.09, "sine", 0.22);
+      playTone(audioContext, 1174.66, now + 0.1, 0.12, "sine", 0.25);
     } catch {
       // Avoid UI-breaking errors on unsupported/restricted audio contexts.
     }
@@ -399,8 +399,8 @@ function useSfx(enabled: boolean) {
       }
 
       const now = audioContext.currentTime;
-      playTone(audioContext, 220, now, 0.14, "square", 0.18);
-      playTone(audioContext, 180, now + 0.11, 0.16, "sine", 0.15);
+      playTone(audioContext, 220, now, 0.14, "square", 0.14);
+      playTone(audioContext, 180, now + 0.11, 0.16, "sine", 0.11);
     } catch {
       // Avoid UI-breaking errors on unsupported/restricted audio contexts.
     }
