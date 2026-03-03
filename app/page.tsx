@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AudioEngine, type InstrumentKey, type SampleStatus } from "./lib/audioEngine";
 import { getIsPro, setIsPro as persistIsPro } from "./lib/entitlements";
+import { useProUpsell } from "./lib/useProUpsell";
 import {
   aggregateDailyRange,
   createEmptyStatsStore,
@@ -106,7 +107,13 @@ type UiText = {
   intervalBreakdown: string;
   resetStats: string;
   soundEffects: string;
-  proDev: string;
+  forceProDev: string;
+  plan: string;
+  currentPlan: string;
+  freePlan: string;
+  proPlan: string;
+  proActive: string;
+  data: string;
   proOnlyInstruments: string;
   intervalPoolLockedDescription: string;
   on: string;
@@ -123,6 +130,14 @@ type UiText = {
   invalidDate: string;
   minusOneDay: string;
   plusOneDay: string;
+  upsellTitle: string;
+  upsellBenefitCustomPool: string;
+  upsellBenefitHistory: string;
+  upsellBenefitInstruments: string;
+  upsellOneTimePurchase: string;
+  upsellContinue: string;
+  upsellNotNow: string;
+  purchasesComingSoon: string;
 };
 
 const I18N: Record<Language, UiText> = {
@@ -190,7 +205,13 @@ const I18N: Record<Language, UiText> = {
     intervalBreakdown: "Interval Breakdown",
     resetStats: "Reset Stats",
     soundEffects: "Sound Effects",
-    proDev: "Pro (dev)",
+    forceProDev: "Force Pro (dev)",
+    plan: "Plan",
+    currentPlan: "Current Plan",
+    freePlan: "Free",
+    proPlan: "Pro",
+    proActive: "Pro Active",
+    data: "Data",
     proOnlyInstruments: "Piano and Guitar are Pro features.",
     intervalPoolLockedDescription: "Unlock Pro to practice specific intervals.",
     on: "ON",
@@ -207,6 +228,14 @@ const I18N: Record<Language, UiText> = {
     invalidDate: "Enter a valid date (YYYY-MM-DD).",
     minusOneDay: "-1 day",
     plusOneDay: "+1 day",
+    upsellTitle: "Upgrade to Pro",
+    upsellBenefitCustomPool: "Practice specific intervals (custom pool)",
+    upsellBenefitHistory: "Detailed history (Day / Week / Month)",
+    upsellBenefitInstruments: "Premium piano & guitar sounds",
+    upsellOneTimePurchase: "One-time purchase",
+    upsellContinue: "Continue",
+    upsellNotNow: "Not now",
+    purchasesComingSoon: "Purchases coming soon",
   },
   ja: {
     title: "音程イヤートレーナー",
@@ -272,7 +301,13 @@ const I18N: Record<Language, UiText> = {
     intervalBreakdown: "Interval Breakdown",
     resetStats: "統計をリセット",
     soundEffects: "効果音",
-    proDev: "Pro（開発）",
+    forceProDev: "Pro強制（開発）",
+    plan: "プラン",
+    currentPlan: "現在のプラン",
+    freePlan: "Free",
+    proPlan: "Pro",
+    proActive: "Pro有効",
+    data: "データ",
     proOnlyInstruments: "ピアノとギターはPro機能です。",
     intervalPoolLockedDescription: "Proにアップグレードすると特定の音程を練習できます。",
     on: "ON",
@@ -289,6 +324,14 @@ const I18N: Record<Language, UiText> = {
     invalidDate: "有効な日付を入力してください（YYYY-MM-DD）。",
     minusOneDay: "-1日",
     plusOneDay: "+1日",
+    upsellTitle: "Proにアップグレード",
+    upsellBenefitCustomPool: "特定の音程を集中練習（カスタムプール）",
+    upsellBenefitHistory: "詳細な履歴（Day / Week / Month）",
+    upsellBenefitInstruments: "高品質なピアノ / ギター音色",
+    upsellOneTimePurchase: "買い切りプラン",
+    upsellContinue: "続ける",
+    upsellNotNow: "今はしない",
+    purchasesComingSoon: "購入機能は近日公開予定です",
   },
 };
 
@@ -610,6 +653,14 @@ export default function Home() {
 
   const t = I18N[language];
   const { ensureContext, playCorrect, playWrong } = useSfx(sfxEnabled);
+  const { openProUpsell, ProUpsellModalNode } = useProUpsell({
+    title: t.upsellTitle,
+    benefits: [t.upsellBenefitCustomPool, t.upsellBenefitHistory, t.upsellBenefitInstruments],
+    pricingNote: t.upsellOneTimePurchase,
+    continueLabel: t.upsellContinue,
+    notNowLabel: t.upsellNotNow,
+    purchasesComingSoon: t.purchasesComingSoon,
+  });
 
   const questionPool = useMemo(
     () => INTERVALS.filter((interval) => selectedIntervalIds.includes(interval.id)),
@@ -1079,9 +1130,12 @@ export default function Home() {
     setHistoryAnchor(startOfDay(getTodayDate()));
   };
   const isHistoryToday = isSameDay(historyAnchor, getTodayDate());
-  const handleUpgradeToPro = useCallback(() => {
-    setActiveTab("settings");
-  }, []);
+  const openUpsellIfNeeded = useCallback(() => {
+    if (isPro) {
+      return;
+    }
+    openProUpsell();
+  }, [isPro, openProUpsell]);
   const applyVirtualDate = useCallback((candidate: string) => {
     if (!IS_DEV_BUILD) {
       return;
@@ -1148,175 +1202,95 @@ export default function Home() {
         {activeTab === "settings" && (
           <>
             <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
-        <h2 className="text-xl font-semibold">{t.systemSettings}</h2>
+              <h2 className="text-xl font-semibold">{t.systemSettings}</h2>
 
-        <div className="mt-4 grid items-start gap-x-6 gap-y-6 md:grid-cols-2">
-          <div>
-            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.language}</h3>
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setLanguage("en")}
-                className={`rounded-md border px-3 py-2 text-sm font-medium ${
-                  language === "en"
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                }`}
-              >
-                EN
-              </button>
-              <button
-                type="button"
-                onClick={() => setLanguage("ja")}
-                className={`rounded-md border px-3 py-2 text-sm font-medium ${
-                  language === "ja"
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                }`}
-              >
-                JA
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.soundEffects}</h3>
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setSfxEnabled(true)}
-                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                  sfxEnabled
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                }`}
-              >
-                {t.on}
-              </button>
-              <button
-                type="button"
-                onClick={() => setSfxEnabled(false)}
-                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                  !sfxEnabled
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                }`}
-              >
-                {t.off}
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.proDev}</h3>
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => void toggleProDev(true)}
-                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                  isPro
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                }`}
-              >
-                {t.on}
-              </button>
-              <button
-                type="button"
-                onClick={() => void toggleProDev(false)}
-                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                  !isPro
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                }`}
-              >
-                {t.off}
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.resetStatsInSettings}</h3>
-            <button
-              type="button"
-              onClick={handleResetStats}
-              className="mt-2 rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-            >
-              {t.resetStats}
-            </button>
-          </div>
-
-          {IS_DEV_BUILD && (
-            <div className="md:col-span-2">
-              <h3 className="text-sm font-semibold text-[var(--muted)]">{t.devTools}</h3>
-              <div className="mt-2 rounded-md border border-[var(--border)] bg-[color-mix(in_oklab,var(--text)_4%,transparent)] p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium">{t.virtualToday}</span>
-                  <button
-                    type="button"
-                    onClick={() => toggleVirtualToday(true)}
-                    className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
-                      virtualTodayEnabled
-                        ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-                        : "border-[var(--border)] bg-[var(--card)] text-[var(--text)]"
-                    }`}
-                  >
-                    {t.on}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => toggleVirtualToday(false)}
-                    className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
-                      !virtualTodayEnabled
-                        ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-                        : "border-[var(--border)] bg-[var(--card)] text-[var(--text)]"
-                    }`}
-                  >
-                    {t.off}
-                  </button>
+              <div className="mt-4 grid items-start gap-x-6 gap-y-6 md:grid-cols-2">
+                <div>
+                  <h3 className="text-sm font-semibold text-[var(--muted)]">{t.language}</h3>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setLanguage("en")}
+                      className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                        language === "en"
+                          ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                          : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                      }`}
+                    >
+                      EN
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLanguage("ja")}
+                      className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                        language === "ja"
+                          ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                          : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                      }`}
+                    >
+                      JA
+                    </button>
+                  </div>
                 </div>
 
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <label className="text-sm text-[var(--muted)]" htmlFor="virtual-today-input">
-                    {t.virtualDate}
-                  </label>
-                  <input
-                    id="virtual-today-input"
-                    value={virtualDateInput}
-                    onChange={(event) => {
-                      setVirtualDateInput(event.target.value);
-                      setVirtualDateError("");
-                    }}
-                    placeholder="YYYY-MM-DD"
-                    className="min-w-[160px] rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => applyVirtualDate(virtualDateInput)}
-                    className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                  >
-                    {t.apply}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => shiftVirtualDate(-1)}
-                    className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                  >
-                    {t.minusOneDay}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => shiftVirtualDate(1)}
-                    className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                  >
-                    {t.plusOneDay}
-                  </button>
+                <div>
+                  <h3 className="text-sm font-semibold text-[var(--muted)]">{t.soundEffects}</h3>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSfxEnabled(true)}
+                      className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                        sfxEnabled
+                          ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                          : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                      }`}
+                    >
+                      {t.on}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSfxEnabled(false)}
+                      className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                        !sfxEnabled
+                          ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                          : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                      }`}
+                    >
+                      {t.off}
+                    </button>
+                  </div>
                 </div>
-                {virtualDateError && <p className="mt-2 text-xs text-[#dc2626]">{virtualDateError}</p>}
               </div>
-            </div>
-          )}
-        </div>
+            </section>
+
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
+              <h2 className="text-xl font-semibold">{t.plan}</h2>
+              <div className="mt-3 flex items-center gap-2 text-sm">
+                <span className="text-[var(--muted)]">{t.currentPlan}:</span>
+                <span className="font-semibold">{isPro ? t.proPlan : t.freePlan}</span>
+                {isPro && (
+                  <span className="rounded-full border border-[var(--correct-border)] bg-[var(--correct-bg)] px-2 py-0.5 text-xs font-medium text-[var(--correct-text)]">
+                    {t.proActive}
+                  </span>
+                )}
+              </div>
+              {!isPro ? (
+                <button
+                  type="button"
+                  onClick={openUpsellIfNeeded}
+                  className="mt-4 rounded-md border border-[var(--accent)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--bg)]"
+                >
+                  {t.upgradeToPro}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="mt-4 rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--muted)] disabled:cursor-not-allowed"
+                >
+                  {t.proActive}
+                </button>
+              )}
             </section>
 
             <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
@@ -1406,30 +1380,34 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => {
-                  if (!isPro) return;
+                  if (!isPro) {
+                    openUpsellIfNeeded();
+                    return;
+                  }
                   setInstrument("piano");
                 }}
-                disabled={!isPro}
                 className={`rounded-md border px-3 py-2 text-sm font-medium ${
                   instrument === "piano"
                     ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
                     : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                } disabled:cursor-not-allowed disabled:opacity-50`}
+                } ${!isPro ? "opacity-75" : ""}`}
               >
                 {t.piano}
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  if (!isPro) return;
+                  if (!isPro) {
+                    openUpsellIfNeeded();
+                    return;
+                  }
                   setInstrument("guitar");
                 }}
-                disabled={!isPro}
                 className={`rounded-md border px-3 py-2 text-sm font-medium ${
                   instrument === "guitar"
                     ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
                     : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                } disabled:cursor-not-allowed disabled:opacity-50`}
+                } ${!isPro ? "opacity-75" : ""}`}
               >
                 {t.guitar}
               </button>
@@ -1439,7 +1417,7 @@ export default function Home() {
                 <p className="text-xs text-[var(--muted)]">{t.proOnlyInstruments}</p>
                 <button
                   type="button"
-                  onClick={handleUpgradeToPro}
+                  onClick={openUpsellIfNeeded}
                   className="mt-2 rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--bg)]"
                 >
                   {t.upgradeToPro}
@@ -1632,7 +1610,7 @@ export default function Home() {
               <p className="text-sm text-[var(--muted)]">{t.intervalPoolLockedDescription}</p>
               <button
                 type="button"
-                onClick={handleUpgradeToPro}
+                onClick={openUpsellIfNeeded}
                 className="mt-2 rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--bg)]"
               >
                 {t.upgradeToPro}
@@ -1660,6 +1638,123 @@ export default function Home() {
             </div>
           )}
         </div>
+            </section>
+
+            {IS_DEV_BUILD && (
+              <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
+                <h2 className="text-xl font-semibold">{t.devTools}</h2>
+                <div className="mt-4 grid items-start gap-x-6 gap-y-6 md:grid-cols-2">
+                  <div>
+                    <h3 className="text-sm font-semibold text-[var(--muted)]">{t.forceProDev}</h3>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void toggleProDev(true)}
+                        className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                          isPro
+                            ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                            : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                        }`}
+                      >
+                        {t.on}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void toggleProDev(false)}
+                        className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                          !isPro
+                            ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                            : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                        }`}
+                      >
+                        {t.off}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <h3 className="text-sm font-semibold text-[var(--muted)]">{t.virtualToday}</h3>
+                    <div className="mt-2 rounded-md border border-[var(--border)] bg-[color-mix(in_oklab,var(--text)_4%,transparent)] p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleVirtualToday(true)}
+                          className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+                            virtualTodayEnabled
+                              ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                              : "border-[var(--border)] bg-[var(--card)] text-[var(--text)]"
+                          }`}
+                        >
+                          {t.on}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleVirtualToday(false)}
+                          className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+                            !virtualTodayEnabled
+                              ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                              : "border-[var(--border)] bg-[var(--card)] text-[var(--text)]"
+                          }`}
+                        >
+                          {t.off}
+                        </button>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <label className="text-sm text-[var(--muted)]" htmlFor="virtual-today-input">
+                          {t.virtualDate}
+                        </label>
+                        <input
+                          id="virtual-today-input"
+                          value={virtualDateInput}
+                          onChange={(event) => {
+                            setVirtualDateInput(event.target.value);
+                            setVirtualDateError("");
+                          }}
+                          placeholder="YYYY-MM-DD"
+                          className="min-w-[160px] rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => applyVirtualDate(virtualDateInput)}
+                          className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                        >
+                          {t.apply}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => shiftVirtualDate(-1)}
+                          className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                        >
+                          {t.minusOneDay}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => shiftVirtualDate(1)}
+                          className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                        >
+                          {t.plusOneDay}
+                        </button>
+                      </div>
+                      {virtualDateError && <p className="mt-2 text-xs text-[#dc2626]">{virtualDateError}</p>}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
+              <h2 className="text-xl font-semibold">{t.data}</h2>
+              <div className="mt-3">
+                <h3 className="text-sm font-semibold text-[var(--muted)]">{t.resetStatsInSettings}</h3>
+                <button
+                  type="button"
+                  onClick={handleResetStats}
+                  className="mt-2 rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                >
+                  {t.resetStats}
+                </button>
+              </div>
             </section>
 
           </>
@@ -1926,7 +2021,7 @@ export default function Home() {
                   <p className="text-sm text-[var(--muted)]">{t.historyLockedDescription}</p>
                   <button
                     type="button"
-                    onClick={handleUpgradeToPro}
+                    onClick={openUpsellIfNeeded}
                     className="mt-3 rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 py-2 text-sm font-medium text-[var(--bg)]"
                   >
                     {t.upgradeToPro}
@@ -2063,6 +2158,7 @@ export default function Home() {
           </div>
         </nav>
       </div>
+      {ProUpsellModalNode}
     </main>
   );
 }
