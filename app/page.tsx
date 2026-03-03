@@ -103,6 +103,7 @@ type UiText = {
   soundEffects: string;
   proDev: string;
   proOnlyInstruments: string;
+  intervalPoolLockedDescription: string;
   on: string;
   off: string;
   loading: string;
@@ -177,6 +178,7 @@ const I18N: Record<Language, UiText> = {
     soundEffects: "Sound Effects",
     proDev: "Pro (dev)",
     proOnlyInstruments: "Piano and Guitar are Pro features.",
+    intervalPoolLockedDescription: "Unlock Pro to practice specific intervals.",
     on: "ON",
     off: "OFF",
     loading: "Loading...",
@@ -249,6 +251,7 @@ const I18N: Record<Language, UiText> = {
     soundEffects: "効果音",
     proDev: "Pro（開発）",
     proOnlyInstruments: "ピアノとギターはPro機能です。",
+    intervalPoolLockedDescription: "Proにアップグレードすると特定の音程を練習できます。",
     on: "ON",
     off: "OFF",
     loading: "読み込み中...",
@@ -1064,6 +1067,9 @@ export default function Home() {
     setHistoryAnchor(startOfDay(new Date()));
   };
   const isHistoryToday = isSameDay(historyAnchor, new Date());
+  const handleUpgradeToPro = useCallback(() => {
+    setActiveTab("settings");
+  }, []);
   const toggleProDev = async (value: boolean) => {
     setIsProState(value);
     if (!value) {
@@ -1289,6 +1295,7 @@ export default function Home() {
                 <p className="text-xs text-[var(--muted)]">{t.proOnlyInstruments}</p>
                 <button
                   type="button"
+                  onClick={handleUpgradeToPro}
                   className="mt-2 rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--bg)]"
                 >
                   {t.upgradeToPro}
@@ -1454,27 +1461,60 @@ export default function Home() {
 
         <div className="mt-6">
           <h3 className="text-sm font-semibold text-[var(--muted)]">{t.intervalPool}</h3>
-          <div className={`mt-2 grid ${answerGridColumnsClass} gap-2`}>
-            {INTERVALS.map((interval) => {
-              const isSelected = selectedIntervalIds.includes(interval.id);
+          {isPro ? (
+            <div className={`mt-2 grid ${answerGridColumnsClass} gap-2`}>
+              {INTERVALS.map((interval) => {
+                const isSelected = selectedIntervalIds.includes(interval.id);
 
-              return (
-                <button
-                  key={interval.id}
-                  type="button"
-                  onClick={() => toggleInterval(interval.id)}
-                  aria-pressed={isSelected}
-                  className={`rounded-md border px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--card)] ${
-                    isSelected
-                      ? "border-[var(--ref-border)] bg-[var(--ref-bg)] text-[var(--ref-text)]"
-                      : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                  }`}
-                >
-                  {intervalDisplayLabel(interval.id, language)}
-                </button>
-              );
-            })}
-          </div>
+                return (
+                  <button
+                    key={interval.id}
+                    type="button"
+                    onClick={() => toggleInterval(interval.id)}
+                    aria-pressed={isSelected}
+                    className={`rounded-md border px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--card)] ${
+                      isSelected
+                        ? "border-[var(--ref-border)] bg-[var(--ref-bg)] text-[var(--ref-text)]"
+                        : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                    }`}
+                  >
+                    {intervalDisplayLabel(interval.id, language)}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt-2 rounded-md border border-[var(--border)] bg-[color-mix(in_oklab,var(--text)_4%,transparent)] p-3">
+              <p className="text-sm text-[var(--muted)]">{t.intervalPoolLockedDescription}</p>
+              <button
+                type="button"
+                onClick={handleUpgradeToPro}
+                className="mt-2 rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--bg)]"
+              >
+                {t.upgradeToPro}
+              </button>
+              <div className={`mt-3 grid ${answerGridColumnsClass} gap-2`}>
+                {INTERVALS.map((interval) => {
+                  const isSelected = selectedIntervalIds.includes(interval.id);
+
+                  return (
+                    <button
+                      key={`locked-${interval.id}`}
+                      type="button"
+                      disabled
+                      className={`rounded-md border px-3 py-2 text-sm font-medium opacity-80 ${
+                        isSelected
+                          ? "border-[var(--ref-border)] bg-[var(--ref-bg)] text-[var(--ref-text)]"
+                          : "border-[var(--border)] bg-[var(--card)] text-[var(--muted)]"
+                      }`}
+                    >
+                      {intervalDisplayLabel(interval.id, language)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
             </section>
 
@@ -1742,6 +1782,7 @@ export default function Home() {
                   <p className="text-sm text-[var(--muted)]">{t.historyLockedDescription}</p>
                   <button
                     type="button"
+                    onClick={handleUpgradeToPro}
                     className="mt-3 rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 py-2 text-sm font-medium text-[var(--bg)]"
                   >
                     {t.upgradeToPro}
