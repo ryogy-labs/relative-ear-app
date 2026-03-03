@@ -85,8 +85,6 @@ type UiText = {
   loading: string;
   downloading: string;
   sampleReady: string;
-  creditsTitle: string;
-  creditsText: string;
 };
 
 const I18N: Record<Language, UiText> = {
@@ -151,9 +149,6 @@ const I18N: Record<Language, UiText> = {
     loading: "Loading...",
     downloading: "Downloading...",
     sampleReady: "Ready",
-    creditsTitle: "Credits",
-    creditsText:
-      "Piano and Guitar sounds use the FluidR3 soundfont by Frank Wen, licensed under Creative Commons Attribution 3.0 (CC BY 3.0).",
   },
   ja: {
     title: "音程イヤートレーナー",
@@ -216,9 +211,6 @@ const I18N: Record<Language, UiText> = {
     loading: "読み込み中...",
     downloading: "ダウンロード中...",
     sampleReady: "準備完了",
-    creditsTitle: "クレジット",
-    creditsText:
-      "ピアノ・ギター音源は Frank Wen 氏による FluidR3 サウンドフォント（CC BY 3.0）を使用しています。",
   },
 };
 
@@ -1224,10 +1216,6 @@ export default function Home() {
         </div>
             </section>
 
-            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
-              <h2 className="text-xl font-semibold">{t.creditsTitle}</h2>
-              <p className="mt-3 text-sm text-[var(--muted)]">{t.creditsText}</p>
-            </section>
           </>
         )}
 

@@ -14,7 +14,7 @@ type EngineStatus = {
 
 type EngineListener = (status: EngineStatus) => void;
 
-// Maps our instrument keys to FluidR3_GM soundfont instrument names
+// Maps our instrument keys to MuseScore_General soundfont instrument names
 const SOUNDFONT_NAMES = {
   piano: "acoustic_grand_piano",
   guitar: "acoustic_guitar_nylon",
@@ -138,7 +138,7 @@ export class AudioEngine {
     try {
       const context = this.getAudioContext();
       const player = await loadSoundfont(context, SOUNDFONT_NAMES[instrument], {
-        soundfont: "FluidR3_GM",
+        soundfont: "MuseScore_General",
         format: "mp3",
       });
       this.sfPlayers.set(instrument, player);
@@ -169,7 +169,7 @@ export class AudioEngine {
       const player = this.sfPlayers.get(this.activeInstrument as SampleInstrument);
       if (player) {
         const midi = isMidiValue(midiOrFreq) ? midiOrFreq : freqToMidi(midiOrFreq);
-        player.play(midiToNoteName(midi), now, { duration: durationSeconds, gain: volume * 0.5 });
+        player.play(midiToNoteName(midi), now, { duration: durationSeconds, gain: volume * 0.9 });
         return;
       }
       // Player missing — fall through to synth
