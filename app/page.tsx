@@ -515,6 +515,7 @@ function getHistoryRangeBounds(range: HistoryRange, anchor: Date): { startDate: 
 }
 
 const IS_DEV_BUILD = process.env.NODE_ENV !== "production";
+const SHOW_DEV_TOOLS = true;
 
 function useSfx(enabled: boolean) {
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -1640,7 +1641,7 @@ export default function Home() {
         </div>
             </section>
 
-            {IS_DEV_BUILD && (
+            {SHOW_DEV_TOOLS && (
               <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
                 <h2 className="text-xl font-semibold">{t.devTools}</h2>
                 <div className="mt-4 grid items-start gap-x-6 gap-y-6 md:grid-cols-2">
