@@ -3,6 +3,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AudioEngine, type InstrumentKey, type SampleStatus } from "./lib/audioEngine";
 import { getIsPro, setIsPro as persistIsPro } from "./lib/entitlements";
+import {
+  aggregateDailyRange,
+  createEmptyStatsStore,
+  incrementStatsForAnswer,
+  loadStats,
+  saveStats,
+  type StatsStore,
+} from "./lib/statsStore";
+import {
+  formatDateKey,
+  getTodayDate,
+  getTodayKey,
+  getVirtualTodayState,
+  setVirtualTodayDateKey,
+  setVirtualTodayEnabled,
+} from "./lib/today";
 
 type Interval = {
   id: string;
@@ -25,17 +41,6 @@ type Round = {
   direction: ResolvedDirection;
   note1Midi: number;
   note2Midi: number;
-};
-
-type AskedEvent = {
-  intervalId: string;
-  timestamp: number;
-};
-
-type AnsweredEvent = {
-  intervalId: string;
-  correct: boolean;
-  timestamp: number;
 };
 
 type UiText = {
@@ -109,6 +114,15 @@ type UiText = {
   loading: string;
   downloading: string;
   sampleReady: string;
+  resetStatsInSettings: string;
+  resetStatsConfirm: string;
+  devTools: string;
+  virtualToday: string;
+  virtualDate: string;
+  apply: string;
+  invalidDate: string;
+  minusOneDay: string;
+  plusOneDay: string;
 };
 
 const I18N: Record<Language, UiText> = {
@@ -184,6 +198,15 @@ const I18N: Record<Language, UiText> = {
     loading: "Loading...",
     downloading: "Downloading...",
     sampleReady: "Ready",
+    resetStatsInSettings: "Reset all stats",
+    resetStatsConfirm: "Reset all stats? This cannot be undone.",
+    devTools: "Dev Tools",
+    virtualToday: "Virtual Today",
+    virtualDate: "Virtual Date",
+    apply: "Apply",
+    invalidDate: "Enter a valid date (YYYY-MM-DD).",
+    minusOneDay: "-1 day",
+    plusOneDay: "+1 day",
   },
   ja: {
     title: "音程イヤートレーナー",
@@ -257,6 +280,15 @@ const I18N: Record<Language, UiText> = {
     loading: "読み込み中...",
     downloading: "ダウンロード中...",
     sampleReady: "準備完了",
+    resetStatsInSettings: "統計をすべてリセット",
+    resetStatsConfirm: "統計をすべてリセットしますか？この操作は元に戻せません。",
+    devTools: "開発ツール",
+    virtualToday: "仮想今日",
+    virtualDate: "仮想日付",
+    apply: "適用",
+    invalidDate: "有効な日付を入力してください（YYYY-MM-DD）。",
+    minusOneDay: "-1日",
+    plusOneDay: "+1日",
   },
 };
 
@@ -293,10 +325,10 @@ const WHITE_SEMITONES = new Set([0, 2, 4, 5, 7, 9, 11]);
 const WHITE_KEY_WIDTH = 48;
 const BLACK_KEY_WIDTH = Math.round(WHITE_KEY_WIDTH * 0.62);
 
-function createInitialIntervalStats(): Record<string, { asked: number; answered: number; correct: number }> {
+function createInitialIntervalStats(): Record<string, { answered: number; correct: number }> {
   return Object.fromEntries(
-    INTERVALS.map((interval) => [interval.id, { asked: 0, answered: 0, correct: 0 }]),
-  ) as Record<string, { asked: number; answered: number; correct: number }>;
+    INTERVALS.map((interval) => [interval.id, { answered: 0, correct: 0 }]),
+  ) as Record<string, { answered: number; correct: number }>;
 }
 
 function matchesPresetSelection(selectedIds: string[], presetIds: string[]): boolean {
@@ -393,26 +425,12 @@ function addMonths(date: Date, months: number): Date {
   return next;
 }
 
-function startOfWeekMonday(date: Date): Date {
-  const dayStart = startOfDay(date);
-  const day = dayStart.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  return addDays(dayStart, diff);
-}
-
 function startOfMonth(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
-function endOfMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
-}
-
 function formatIsoDay(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return formatDateKey(date);
 }
 
 function formatIsoMonth(date: Date): string {
@@ -429,31 +447,31 @@ function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
-function currentTimestampMs(): number {
-  return Date.now();
-}
-
-function getHistoryRangeBounds(range: HistoryRange, anchor: Date): { startMs: number; endMs: number; label: string } {
+function getHistoryRangeBounds(range: HistoryRange, anchor: Date): { startDate: Date; endDate: Date; label: string } {
   if (range === "day") {
     const dayStart = startOfDay(anchor);
-    const dayEnd = addDays(dayStart, 1).getTime() - 1;
-    return { startMs: dayStart.getTime(), endMs: dayEnd, label: formatIsoDay(dayStart) };
+    return { startDate: dayStart, endDate: dayStart, label: formatIsoDay(dayStart) };
   }
 
   if (range === "week") {
-    const weekStart = startOfWeekMonday(anchor);
-    const weekEndDate = addDays(weekStart, 7);
+    const weekEndDate = startOfDay(anchor);
+    const weekStart = addDays(weekEndDate, -6);
     return {
-      startMs: weekStart.getTime(),
-      endMs: weekEndDate.getTime() - 1,
-      label: `${formatIsoDay(weekStart)} - ${formatIsoDay(addDays(weekEndDate, -1))}`,
+      startDate: weekStart,
+      endDate: weekEndDate,
+      label: `${formatIsoDay(weekStart)} – ${formatIsoDay(weekEndDate)}`,
     };
   }
 
   const monthStart = startOfMonth(anchor);
-  const monthEnd = endOfMonth(anchor);
-  return { startMs: monthStart.getTime(), endMs: monthEnd.getTime(), label: formatIsoMonth(monthStart) };
+  return {
+    startDate: monthStart,
+    endDate: new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0),
+    label: formatIsoMonth(monthStart),
+  };
 }
+
+const IS_DEV_BUILD = process.env.NODE_ENV !== "production";
 
 function useSfx(enabled: boolean) {
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -560,20 +578,27 @@ export default function Home() {
   const [keyboardVisible, setKeyboardVisible] = useState<boolean>(true);
   const [isPro, setIsProState] = useState<boolean>(false);
   const [historyRange, setHistoryRange] = useState<HistoryRange>("day");
-  const [historyAnchor, setHistoryAnchor] = useState<Date>(() => startOfDay(new Date()));
+  const [historyAnchor, setHistoryAnchor] = useState<Date>(() => startOfDay(getTodayDate()));
+  const [virtualTodayEnabled, setVirtualTodayEnabledState] = useState<boolean>(() => {
+    if (!IS_DEV_BUILD) {
+      return false;
+    }
+    return getVirtualTodayState().enabled;
+  });
+  const [virtualDateInput, setVirtualDateInput] = useState<string>(() => {
+    if (!IS_DEV_BUILD) {
+      return formatDateKey(getTodayDate());
+    }
+    return getVirtualTodayState().dateKey;
+  });
+  const [virtualDateError, setVirtualDateError] = useState<string>("");
 
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
   const [resultStatus, setResultStatus] = useState<"idle" | "correct" | "incorrect">("idle");
   const [resultAnswerLabel, setResultAnswerLabel] = useState<string>("");
   const [answered, setAnswered] = useState<boolean>(false);
   const [submittedChoiceId, setSubmittedChoiceId] = useState<string | null>(null);
-  const [total, setTotal] = useState<number>(0);
-  const [correct, setCorrect] = useState<number>(0);
-  const [intervalStats, setIntervalStats] = useState<Record<string, { asked: number; answered: number; correct: number }>>(
-    createInitialIntervalStats,
-  );
-  const [askedEvents, setAskedEvents] = useState<AskedEvent[]>([]);
-  const [answeredEvents, setAnsweredEvents] = useState<AnsweredEvent[]>([]);
+  const [statsStore, setStatsStore] = useState<StatsStore>(createEmptyStatsStore);
   const keyboardScrollRef = useRef<HTMLDivElement | null>(null);
   const scheduledPlaybackRef = useRef<number[]>([]);
   const audioEngineRef = useRef<AudioEngine>(new AudioEngine());
@@ -609,53 +634,45 @@ export default function Home() {
     [keyboardWhiteKeys],
   );
 
+  const total = statsStore.allTime.totalAnswered;
+  const correct = statsStore.allTime.totalCorrect;
   const accuracy = total > 0 ? ((correct / total) * 100).toFixed(1) : "0.0";
   const historyBounds = useMemo(
     () => getHistoryRangeBounds(historyRange, historyAnchor),
     [historyRange, historyAnchor],
   );
+  const allTimeIntervalStats = useMemo(() => {
+    const nextAllTime = createInitialIntervalStats();
+    Object.entries(statsStore.allTime.byInterval).forEach(([intervalId, counter]) => {
+      if (!nextAllTime[intervalId]) {
+        nextAllTime[intervalId] = { answered: 0, correct: 0 };
+      }
+      nextAllTime[intervalId] = {
+        answered: counter.answered,
+        correct: counter.correct,
+      };
+    });
+    return nextAllTime;
+  }, [statsStore.allTime.byInterval]);
   const historyStats = useMemo(() => {
-    const askedByInterval = Object.fromEntries(INTERVALS.map((interval) => [interval.id, 0])) as Record<string, number>;
-    const answeredByInterval = Object.fromEntries(INTERVALS.map((interval) => [interval.id, 0])) as Record<string, number>;
-    const correctByInterval = Object.fromEntries(INTERVALS.map((interval) => [interval.id, 0])) as Record<string, number>;
-
-    askedEvents.forEach((event) => {
-      if (event.timestamp >= historyBounds.startMs && event.timestamp <= historyBounds.endMs) {
-        askedByInterval[event.intervalId] = (askedByInterval[event.intervalId] ?? 0) + 1;
-      }
-    });
-
-    let answeredTotal = 0;
-    let correctTotal = 0;
-    answeredEvents.forEach((event) => {
-      if (event.timestamp >= historyBounds.startMs && event.timestamp <= historyBounds.endMs) {
-        answeredTotal += 1;
-        answeredByInterval[event.intervalId] = (answeredByInterval[event.intervalId] ?? 0) + 1;
-        if (event.correct) {
-          correctTotal += 1;
-          correctByInterval[event.intervalId] = (correctByInterval[event.intervalId] ?? 0) + 1;
-        }
-      }
-    });
-
+    const aggregated = aggregateDailyRange(statsStore, historyBounds.startDate, historyBounds.endDate);
     const intervalBreakdown = Object.fromEntries(
       INTERVALS.map((interval) => [
         interval.id,
         {
-          asked: askedByInterval[interval.id] ?? 0,
-          answered: answeredByInterval[interval.id] ?? 0,
-          correct: correctByInterval[interval.id] ?? 0,
+          answered: aggregated.byInterval[interval.id]?.answered ?? 0,
+          correct: aggregated.byInterval[interval.id]?.correct ?? 0,
         },
       ]),
-    ) as Record<string, { asked: number; answered: number; correct: number }>;
-
+    ) as Record<string, { answered: number; correct: number }>;
     return {
-      total: answeredTotal,
-      correct: correctTotal,
-      accuracy: answeredTotal > 0 ? ((correctTotal / answeredTotal) * 100).toFixed(1) : "0.0",
+      total: aggregated.totalAnswered,
+      correct: aggregated.totalCorrect,
+      accuracy:
+        aggregated.totalAnswered > 0 ? ((aggregated.totalCorrect / aggregated.totalAnswered) * 100).toFixed(1) : "0.0",
       intervalBreakdown,
     };
-  }, [askedEvents, answeredEvents, historyBounds.endMs, historyBounds.startMs]);
+  }, [historyBounds.endDate, historyBounds.startDate, statsStore]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -663,6 +680,21 @@ export default function Home() {
     }
     window.localStorage.setItem("relative-ear.instrument", instrument);
   }, [instrument]);
+
+  useEffect(() => {
+    let active = true;
+    const hydrateStats = async () => {
+      const loaded = await loadStats();
+      if (!active) {
+        return;
+      }
+      setStatsStore(loaded);
+    };
+    void hydrateStats();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -782,15 +814,6 @@ export default function Home() {
       };
 
       setCurrentRound(round);
-      setAskedEvents((prev) => [...prev, { intervalId: nextAnswer.id, timestamp: currentTimestampMs() }]);
-      setIntervalStats((prev) => ({
-        ...prev,
-        [nextAnswer.id]: {
-          asked: (prev[nextAnswer.id]?.asked ?? 0) + 1,
-          answered: prev[nextAnswer.id]?.answered ?? 0,
-          correct: prev[nextAnswer.id]?.correct ?? 0,
-        },
-      }));
       setResultStatus("idle");
       setResultAnswerLabel("");
       setAnswered(false);
@@ -850,30 +873,16 @@ export default function Home() {
 
     const isCorrect = selected.id === round.answerId;
     const answerLabel = intervalDisplayLabel(round.answerId, language);
-    const answeredAt = currentTimestampMs();
+    const dateKey = getTodayKey();
 
     setSubmittedChoiceId(selected.id);
-    setAnsweredEvents((prev) => [...prev, { intervalId: round.answerId, correct: isCorrect, timestamp: answeredAt }]);
-    setTotal((prev) => prev + 1);
-    setIntervalStats((prev) => ({
-      ...prev,
-      [round.answerId]: {
-        asked: prev[round.answerId]?.asked ?? 0,
-        answered: (prev[round.answerId]?.answered ?? 0) + 1,
-        correct: prev[round.answerId]?.correct ?? 0,
-      },
-    }));
+    setStatsStore((prev) => {
+      const next = incrementStatsForAnswer(prev, round.answerId, isCorrect, dateKey);
+      void saveStats(next);
+      return next;
+    });
 
     if (isCorrect) {
-      setCorrect((prev) => prev + 1);
-      setIntervalStats((prev) => ({
-        ...prev,
-        [round.answerId]: {
-          asked: prev[round.answerId]?.asked ?? 0,
-          answered: prev[round.answerId]?.answered ?? 0,
-          correct: (prev[round.answerId]?.correct ?? 0) + 1,
-        },
-      }));
       setResultStatus("correct");
       setResultAnswerLabel("");
       void playCorrect();
@@ -1032,13 +1041,11 @@ export default function Home() {
     return "border-[var(--incorrect-border)] bg-[var(--incorrect)] text-[var(--text)]";
   };
 
-  const resetStats = () => {
-    setTotal(0);
-    setCorrect(0);
-    setIntervalStats(createInitialIntervalStats());
-    setAskedEvents([]);
-    setAnsweredEvents([]);
-  };
+  const resetStats = useCallback(async () => {
+    const emptyStore = createEmptyStatsStore();
+    setStatsStore(emptyStore);
+    await saveStats(emptyStore);
+  }, []);
 
   const tabButtonClass = (tab: AppTab): string => {
     if (activeTab === tab) {
@@ -1058,18 +1065,73 @@ export default function Home() {
         return startOfDay(addDays(prev, direction));
       }
       if (historyRange === "week") {
-        return startOfWeekMonday(addDays(prev, direction * 7));
+        const shiftedEndDate = startOfDay(addDays(prev, direction * 7));
+        if (direction > 0) {
+          const today = startOfDay(getTodayDate());
+          return shiftedEndDate > today ? today : shiftedEndDate;
+        }
+        return shiftedEndDate;
       }
       return startOfMonth(addMonths(prev, direction));
     });
   };
   const jumpHistoryToday = () => {
-    setHistoryAnchor(startOfDay(new Date()));
+    setHistoryAnchor(startOfDay(getTodayDate()));
   };
-  const isHistoryToday = isSameDay(historyAnchor, new Date());
+  const isHistoryToday = isSameDay(historyAnchor, getTodayDate());
   const handleUpgradeToPro = useCallback(() => {
     setActiveTab("settings");
   }, []);
+  const applyVirtualDate = useCallback((candidate: string) => {
+    if (!IS_DEV_BUILD) {
+      return;
+    }
+    const ok = setVirtualTodayDateKey(candidate);
+    if (!ok) {
+      setVirtualDateError(t.invalidDate);
+      return;
+    }
+    setVirtualDateError("");
+    const state = getVirtualTodayState();
+    setVirtualDateInput(state.dateKey);
+    if (state.enabled) {
+      setHistoryAnchor(startOfDay(getTodayDate()));
+    }
+  }, [t.invalidDate]);
+  const toggleVirtualToday = useCallback((enabled: boolean) => {
+    if (!IS_DEV_BUILD) {
+      return;
+    }
+    setVirtualTodayEnabled(enabled);
+    setVirtualTodayEnabledState(enabled);
+    setVirtualDateError("");
+    if (enabled) {
+      applyVirtualDate(virtualDateInput);
+      setHistoryAnchor(startOfDay(getTodayDate()));
+      return;
+    }
+    setHistoryAnchor(startOfDay(getTodayDate()));
+  }, [applyVirtualDate, virtualDateInput]);
+  const shiftVirtualDate = useCallback((deltaDays: number) => {
+    if (!IS_DEV_BUILD) {
+      return;
+    }
+    const baseState = getVirtualTodayState();
+    const baseDate = baseState.enabled ? getTodayDate() : startOfDay(getTodayDate());
+    const shifted = addDays(startOfDay(baseDate), deltaDays);
+    const shiftedKey = formatDateKey(shifted);
+    setVirtualDateInput(shiftedKey);
+    applyVirtualDate(shiftedKey);
+  }, [applyVirtualDate]);
+  const handleResetStats = useCallback(() => {
+    if (typeof window !== "undefined") {
+      const ok = window.confirm(t.resetStatsConfirm);
+      if (!ok) {
+        return;
+      }
+    }
+    void resetStats();
+  }, [resetStats, t.resetStatsConfirm]);
   const toggleProDev = async (value: boolean) => {
     setIsProState(value);
     if (!value) {
@@ -1172,6 +1234,88 @@ export default function Home() {
               </button>
             </div>
           </div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.resetStatsInSettings}</h3>
+            <button
+              type="button"
+              onClick={handleResetStats}
+              className="mt-2 rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+            >
+              {t.resetStats}
+            </button>
+          </div>
+
+          {IS_DEV_BUILD && (
+            <div className="md:col-span-2">
+              <h3 className="text-sm font-semibold text-[var(--muted)]">{t.devTools}</h3>
+              <div className="mt-2 rounded-md border border-[var(--border)] bg-[color-mix(in_oklab,var(--text)_4%,transparent)] p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium">{t.virtualToday}</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleVirtualToday(true)}
+                    className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+                      virtualTodayEnabled
+                        ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                        : "border-[var(--border)] bg-[var(--card)] text-[var(--text)]"
+                    }`}
+                  >
+                    {t.on}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleVirtualToday(false)}
+                    className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+                      !virtualTodayEnabled
+                        ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                        : "border-[var(--border)] bg-[var(--card)] text-[var(--text)]"
+                    }`}
+                  >
+                    {t.off}
+                  </button>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <label className="text-sm text-[var(--muted)]" htmlFor="virtual-today-input">
+                    {t.virtualDate}
+                  </label>
+                  <input
+                    id="virtual-today-input"
+                    value={virtualDateInput}
+                    onChange={(event) => {
+                      setVirtualDateInput(event.target.value);
+                      setVirtualDateError("");
+                    }}
+                    placeholder="YYYY-MM-DD"
+                    className="min-w-[160px] rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => applyVirtualDate(virtualDateInput)}
+                    className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                  >
+                    {t.apply}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => shiftVirtualDate(-1)}
+                    className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                  >
+                    {t.minusOneDay}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => shiftVirtualDate(1)}
+                    className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                  >
+                    {t.plusOneDay}
+                  </button>
+                </div>
+                {virtualDateError && <p className="mt-2 text-xs text-[#dc2626]">{virtualDateError}</p>}
+              </div>
+            </div>
+          )}
         </div>
             </section>
 
@@ -1741,7 +1885,7 @@ export default function Home() {
                 <h3 className="text-base font-semibold">{t.intervalBreakdown}</h3>
                 <button
                   type="button"
-                  onClick={resetStats}
+                  onClick={handleResetStats}
                   className="rounded-md border border-[var(--border)] px-3 py-2 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
                 >
                   {t.resetStats}
@@ -1750,7 +1894,7 @@ export default function Home() {
 
               <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
                 {INTERVALS.map((interval) => {
-                  const stat = intervalStats[interval.id] ?? { asked: 0, answered: 0, correct: 0 };
+                  const stat = allTimeIntervalStats[interval.id] ?? { answered: 0, correct: 0 };
                   const intervalAccuracy = stat.answered > 0 ? (stat.correct / stat.answered) * 100 : 0;
                   const accuracyLabel = stat.answered > 0 ? `${intervalAccuracy.toFixed(1)}%` : "—";
 
@@ -1761,7 +1905,7 @@ export default function Home() {
                     >
                       <div className="text-sm font-semibold">{intervalDisplayLabel(interval.id, language)}</div>
                       <div className="mt-2 text-xs opacity-80">
-                        {t.total}: {stat.asked}
+                        {t.total}: {stat.answered}
                       </div>
                       <div className="text-xs opacity-80">
                         {t.correct}: {stat.correct}
@@ -1875,7 +2019,7 @@ export default function Home() {
                     <h3 className="text-base font-semibold">{t.intervalBreakdown}</h3>
                     <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
                       {INTERVALS.map((interval) => {
-                        const stat = historyStats.intervalBreakdown[interval.id] ?? { asked: 0, answered: 0, correct: 0 };
+                        const stat = historyStats.intervalBreakdown[interval.id] ?? { answered: 0, correct: 0 };
                         const intervalAccuracy = stat.answered > 0 ? (stat.correct / stat.answered) * 100 : 0;
                         const accuracyLabel = stat.answered > 0 ? `${intervalAccuracy.toFixed(1)}%` : "—";
 
@@ -1886,7 +2030,7 @@ export default function Home() {
                           >
                             <div className="text-sm font-semibold">{intervalDisplayLabel(interval.id, language)}</div>
                             <div className="mt-2 text-xs opacity-80">
-                              {t.total}: {stat.asked}
+                              {t.total}: {stat.answered}
                             </div>
                             <div className="text-xs opacity-80">
                               {t.correct}: {stat.correct}
