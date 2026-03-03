@@ -14,11 +14,17 @@ type EngineStatus = {
 
 type EngineListener = (status: EngineStatus) => void;
 
-// Maps our instrument keys to FluidR3_GM soundfont instrument names
+// Maps our instrument keys to MuseScore_General soundfont instrument names
 const SOUNDFONT_NAMES = {
   piano: "acoustic_grand_piano",
   guitar: "acoustic_guitar_nylon",
 } as const;
+
+// Per-instrument gain multipliers — tuned so perceived loudness matches Synth
+const SOUNDFONT_GAIN: Record<SampleInstrument, number> = {
+  piano: 1.5,
+  guitar: 1.1,
+};
 
 // Flat-notation note names matching gleitz soundfont file keys
 const NOTE_NAMES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"] as const;
@@ -138,7 +144,7 @@ export class AudioEngine {
     try {
       const context = this.getAudioContext();
       const player = await loadSoundfont(context, SOUNDFONT_NAMES[instrument], {
-        soundfont: "FluidR3_GM",
+        soundfont: "MuseScore_General",
         format: "mp3",
       });
       this.sfPlayers.set(instrument, player);
@@ -169,7 +175,8 @@ export class AudioEngine {
       const player = this.sfPlayers.get(this.activeInstrument as SampleInstrument);
       if (player) {
         const midi = isMidiValue(midiOrFreq) ? midiOrFreq : freqToMidi(midiOrFreq);
-        player.play(midiToNoteName(midi), now, { duration: durationSeconds, gain: volume * 0.5 });
+        const sfGain = SOUNDFONT_GAIN[this.activeInstrument as SampleInstrument];
+        player.play(midiToNoteName(midi), now, { duration: durationSeconds, gain: volume * sfGain });
         return;
       }
       // Player missing — fall through to synth
@@ -186,7 +193,7 @@ export class AudioEngine {
     oscillator.frequency.setValueAtTime(frequency, now);
 
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.25 * volume, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.20 * volume, now + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + durationSeconds);
 
     oscillator.connect(gain);
