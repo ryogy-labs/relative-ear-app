@@ -16,6 +16,7 @@ type Language = "en" | "ja";
 type NoteLengthKey = "short" | "medium" | "long";
 type ButtonSizeKey = "large" | "medium" | "small";
 type AppTab = "practice" | "stats" | "settings";
+type HistoryRange = "day" | "week" | "month";
 
 type Round = {
   answerId: string;
@@ -23,6 +24,17 @@ type Round = {
   direction: ResolvedDirection;
   note1Midi: number;
   note2Midi: number;
+};
+
+type AskedEvent = {
+  intervalId: string;
+  timestamp: number;
+};
+
+type AnsweredEvent = {
+  intervalId: string;
+  correct: boolean;
+  timestamp: number;
 };
 
 type UiText = {
@@ -66,6 +78,14 @@ type UiText = {
   selectOne: string;
   nextInterval: string;
   stats: string;
+  allTime: string;
+  history: string;
+  day: string;
+  week: string;
+  month: string;
+  today: string;
+  historyLockedDescription: string;
+  upgradeToPro: string;
   total: string;
   correct: string;
   accuracy: string;
@@ -130,6 +150,14 @@ const I18N: Record<Language, UiText> = {
     selectOne: "Select at least one interval to start.",
     nextInterval: "Next interval",
     stats: "Stats",
+    allTime: "All Time",
+    history: "History",
+    day: "Day",
+    week: "Week",
+    month: "Month",
+    today: "Today",
+    historyLockedDescription: "Unlock detailed stats with Pro.",
+    upgradeToPro: "Upgrade to Pro",
     total: "Total",
     correct: "Correct",
     accuracy: "Accuracy",
@@ -192,6 +220,14 @@ const I18N: Record<Language, UiText> = {
     selectOne: "少なくとも1つの音程を選択してください。",
     nextInterval: "次の音程",
     stats: "統計",
+    allTime: "全期間",
+    history: "履歴",
+    day: "日",
+    week: "週",
+    month: "月",
+    today: "今日",
+    historyLockedDescription: "Proで詳細な統計を利用できます。",
+    upgradeToPro: "Proにアップグレード",
     total: "総数",
     correct: "正解",
     accuracy: "正答率",
@@ -329,6 +365,86 @@ function degreeLabelFromRoot(rootMidi: number, targetMidi: number): string {
   return labels[diff];
 }
 
+function startOfDay(date: Date): Date {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function addMonths(date: Date, months: number): Date {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + months);
+  return next;
+}
+
+function startOfWeekMonday(date: Date): Date {
+  const dayStart = startOfDay(date);
+  const day = dayStart.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  return addDays(dayStart, diff);
+}
+
+function startOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function endOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+}
+
+function formatIsoDay(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function formatIsoMonth(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function currentTimestampMs(): number {
+  return Date.now();
+}
+
+function getHistoryRangeBounds(range: HistoryRange, anchor: Date): { startMs: number; endMs: number; label: string } {
+  if (range === "day") {
+    const dayStart = startOfDay(anchor);
+    const dayEnd = addDays(dayStart, 1).getTime() - 1;
+    return { startMs: dayStart.getTime(), endMs: dayEnd, label: formatIsoDay(dayStart) };
+  }
+
+  if (range === "week") {
+    const weekStart = startOfWeekMonday(anchor);
+    const weekEndDate = addDays(weekStart, 7);
+    return {
+      startMs: weekStart.getTime(),
+      endMs: weekEndDate.getTime() - 1,
+      label: `${formatIsoDay(weekStart)} - ${formatIsoDay(addDays(weekEndDate, -1))}`,
+    };
+  }
+
+  const monthStart = startOfMonth(anchor);
+  const monthEnd = endOfMonth(anchor);
+  return { startMs: monthStart.getTime(), endMs: monthEnd.getTime(), label: formatIsoMonth(monthStart) };
+}
+
 function useSfx(enabled: boolean) {
   const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -432,6 +548,14 @@ export default function Home() {
   const [sfxEnabled, setSfxEnabled] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<AppTab>("practice");
   const [keyboardVisible, setKeyboardVisible] = useState<boolean>(true);
+  const [isPro] = useState<boolean>(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    return window.localStorage.getItem("relative-ear.isPro") === "true";
+  });
+  const [historyRange, setHistoryRange] = useState<HistoryRange>("day");
+  const [historyAnchor, setHistoryAnchor] = useState<Date>(() => startOfDay(new Date()));
 
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
   const [resultStatus, setResultStatus] = useState<"idle" | "correct" | "incorrect">("idle");
@@ -443,6 +567,8 @@ export default function Home() {
   const [intervalStats, setIntervalStats] = useState<Record<string, { asked: number; answered: number; correct: number }>>(
     createInitialIntervalStats,
   );
+  const [askedEvents, setAskedEvents] = useState<AskedEvent[]>([]);
+  const [answeredEvents, setAnsweredEvents] = useState<AnsweredEvent[]>([]);
   const keyboardScrollRef = useRef<HTMLDivElement | null>(null);
   const scheduledPlaybackRef = useRef<number[]>([]);
   const audioEngineRef = useRef<AudioEngine>(new AudioEngine());
@@ -451,9 +577,6 @@ export default function Home() {
     piano: "idle",
     guitar: "idle",
   });
-
-  // TODO: Replace with actual IAP check when integrating Pro tier purchases
-  const isPro = true;
 
   const t = I18N[language];
   const { ensureContext, playCorrect, playWrong } = useSfx(sfxEnabled);
@@ -482,6 +605,52 @@ export default function Home() {
   );
 
   const accuracy = total > 0 ? ((correct / total) * 100).toFixed(1) : "0.0";
+  const historyBounds = useMemo(
+    () => getHistoryRangeBounds(historyRange, historyAnchor),
+    [historyRange, historyAnchor],
+  );
+  const historyStats = useMemo(() => {
+    const askedByInterval = Object.fromEntries(INTERVALS.map((interval) => [interval.id, 0])) as Record<string, number>;
+    const answeredByInterval = Object.fromEntries(INTERVALS.map((interval) => [interval.id, 0])) as Record<string, number>;
+    const correctByInterval = Object.fromEntries(INTERVALS.map((interval) => [interval.id, 0])) as Record<string, number>;
+
+    askedEvents.forEach((event) => {
+      if (event.timestamp >= historyBounds.startMs && event.timestamp <= historyBounds.endMs) {
+        askedByInterval[event.intervalId] = (askedByInterval[event.intervalId] ?? 0) + 1;
+      }
+    });
+
+    let answeredTotal = 0;
+    let correctTotal = 0;
+    answeredEvents.forEach((event) => {
+      if (event.timestamp >= historyBounds.startMs && event.timestamp <= historyBounds.endMs) {
+        answeredTotal += 1;
+        answeredByInterval[event.intervalId] = (answeredByInterval[event.intervalId] ?? 0) + 1;
+        if (event.correct) {
+          correctTotal += 1;
+          correctByInterval[event.intervalId] = (correctByInterval[event.intervalId] ?? 0) + 1;
+        }
+      }
+    });
+
+    const intervalBreakdown = Object.fromEntries(
+      INTERVALS.map((interval) => [
+        interval.id,
+        {
+          asked: askedByInterval[interval.id] ?? 0,
+          answered: answeredByInterval[interval.id] ?? 0,
+          correct: correctByInterval[interval.id] ?? 0,
+        },
+      ]),
+    ) as Record<string, { asked: number; answered: number; correct: number }>;
+
+    return {
+      total: answeredTotal,
+      correct: correctTotal,
+      accuracy: answeredTotal > 0 ? ((correctTotal / answeredTotal) * 100).toFixed(1) : "0.0",
+      intervalBreakdown,
+    };
+  }, [askedEvents, answeredEvents, historyBounds.endMs, historyBounds.startMs]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -591,6 +760,7 @@ export default function Home() {
       };
 
       setCurrentRound(round);
+      setAskedEvents((prev) => [...prev, { intervalId: nextAnswer.id, timestamp: currentTimestampMs() }]);
       setIntervalStats((prev) => ({
         ...prev,
         [nextAnswer.id]: {
@@ -658,8 +828,10 @@ export default function Home() {
 
     const isCorrect = selected.id === round.answerId;
     const answerLabel = intervalDisplayLabel(round.answerId, language);
+    const answeredAt = currentTimestampMs();
 
     setSubmittedChoiceId(selected.id);
+    setAnsweredEvents((prev) => [...prev, { intervalId: round.answerId, correct: isCorrect, timestamp: answeredAt }]);
     setTotal((prev) => prev + 1);
     setIntervalStats((prev) => ({
       ...prev,
@@ -842,6 +1014,8 @@ export default function Home() {
     setTotal(0);
     setCorrect(0);
     setIntervalStats(createInitialIntervalStats());
+    setAskedEvents([]);
+    setAnsweredEvents([]);
   };
 
   const tabButtonClass = (tab: AppTab): string => {
@@ -856,6 +1030,21 @@ export default function Home() {
     buttonSize === "large" ? "grid-cols-2" : buttonSize === "medium" ? "grid-cols-3" : "grid-cols-4";
   const practiceControlButtonBase =
     "rounded-md px-5 py-3 text-sm font-semibold leading-5 transition disabled:cursor-not-allowed disabled:opacity-40";
+  const moveHistory = (direction: -1 | 1) => {
+    setHistoryAnchor((prev) => {
+      if (historyRange === "day") {
+        return startOfDay(addDays(prev, direction));
+      }
+      if (historyRange === "week") {
+        return startOfWeekMonday(addDays(prev, direction * 7));
+      }
+      return startOfMonth(addMonths(prev, direction));
+    });
+  };
+  const jumpHistoryToday = () => {
+    setHistoryAnchor(startOfDay(new Date()));
+  };
+  const isHistoryToday = isSameDay(historyAnchor, new Date());
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 py-10 text-[var(--text)] max-[480px]:px-4 max-[480px]:py-5">
@@ -1417,60 +1606,189 @@ export default function Home() {
         )}
 
         {activeTab === "stats" && (
-          <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
-        <h2 className="text-xl font-semibold">{t.stats}</h2>
-        <div className="mt-4 grid grid-cols-3 gap-3 text-center">
-          <div className="rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3">
-            <div className="text-xs text-[var(--muted)]">{t.total}</div>
-            <div className="text-2xl font-bold">{total}</div>
-          </div>
-          <div className="rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3">
-            <div className="text-xs text-[var(--muted)]">{t.correct}</div>
-            <div className="text-2xl font-bold">{correct}</div>
-          </div>
-          <div className="rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3">
-            <div className="text-xs text-[var(--muted)]">{t.accuracy}</div>
-            <div className="text-2xl font-bold">{accuracy}%</div>
-          </div>
-        </div>
-
-        <div className="mt-6 flex items-center justify-between gap-3">
-          <h3 className="text-base font-semibold">{t.intervalBreakdown}</h3>
-          <button
-            type="button"
-            onClick={resetStats}
-            className="rounded-md border border-[var(--border)] px-3 py-2 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-          >
-            {t.resetStats}
-          </button>
-        </div>
-
-        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-          {INTERVALS.map((interval) => {
-            const stat = intervalStats[interval.id] ?? { asked: 0, answered: 0, correct: 0 };
-            const intervalAccuracy = stat.answered > 0 ? (stat.correct / stat.answered) * 100 : 0;
-            const accuracyLabel = stat.answered > 0 ? `${intervalAccuracy.toFixed(1)}%` : "—";
-
-            return (
-              <div
-                key={interval.id}
-                className={`rounded-md border p-3 ${breakdownCardClass(stat.answered, intervalAccuracy)}`}
-              >
-                <div className="text-sm font-semibold">{intervalDisplayLabel(interval.id, language)}</div>
-                <div className="mt-2 text-xs opacity-80">
-                  {t.total}: {stat.asked}
+          <div className="space-y-4">
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
+              <h2 className="text-xl font-semibold">{t.allTime}</h2>
+              <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+                <div className="rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3">
+                  <div className="text-xs text-[var(--muted)]">{t.total}</div>
+                  <div className="text-2xl font-bold">{total}</div>
                 </div>
-                <div className="text-xs opacity-80">
-                  {t.correct}: {stat.correct}
+                <div className="rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3">
+                  <div className="text-xs text-[var(--muted)]">{t.correct}</div>
+                  <div className="text-2xl font-bold">{correct}</div>
                 </div>
-                <div className="mt-1 text-sm font-semibold">
-                  {t.accuracy}: {accuracyLabel}
+                <div className="rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3">
+                  <div className="text-xs text-[var(--muted)]">{t.accuracy}</div>
+                  <div className="text-2xl font-bold">{accuracy}%</div>
                 </div>
               </div>
-            );
-          })}
-        </div>
-          </section>
+
+              <div className="mt-6 flex items-center justify-between gap-3">
+                <h3 className="text-base font-semibold">{t.intervalBreakdown}</h3>
+                <button
+                  type="button"
+                  onClick={resetStats}
+                  className="rounded-md border border-[var(--border)] px-3 py-2 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                >
+                  {t.resetStats}
+                </button>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+                {INTERVALS.map((interval) => {
+                  const stat = intervalStats[interval.id] ?? { asked: 0, answered: 0, correct: 0 };
+                  const intervalAccuracy = stat.answered > 0 ? (stat.correct / stat.answered) * 100 : 0;
+                  const accuracyLabel = stat.answered > 0 ? `${intervalAccuracy.toFixed(1)}%` : "—";
+
+                  return (
+                    <div
+                      key={interval.id}
+                      className={`rounded-md border p-3 ${breakdownCardClass(stat.answered, intervalAccuracy)}`}
+                    >
+                      <div className="text-sm font-semibold">{intervalDisplayLabel(interval.id, language)}</div>
+                      <div className="mt-2 text-xs opacity-80">
+                        {t.total}: {stat.asked}
+                      </div>
+                      <div className="text-xs opacity-80">
+                        {t.correct}: {stat.correct}
+                      </div>
+                      <div className="mt-1 text-sm font-semibold">
+                        {t.accuracy}: {accuracyLabel}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
+              <h2 className="text-xl font-semibold">{t.history}</h2>
+              {!isPro ? (
+                <div className="mt-3 rounded-md border border-[var(--border)] bg-[color-mix(in_oklab,var(--text)_4%,transparent)] p-4">
+                  <p className="text-sm text-[var(--muted)]">{t.historyLockedDescription}</p>
+                  <button
+                    type="button"
+                    className="mt-3 rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 py-2 text-sm font-medium text-[var(--bg)]"
+                  >
+                    {t.upgradeToPro}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setHistoryRange("day")}
+                      className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                        historyRange === "day"
+                          ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                          : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                      }`}
+                    >
+                      {t.day}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryRange("week")}
+                      className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                        historyRange === "week"
+                          ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                          : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                      }`}
+                    >
+                      {t.week}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryRange("month")}
+                      className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                        historyRange === "month"
+                          ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                          : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                      }`}
+                    >
+                      {t.month}
+                    </button>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => moveHistory(-1)}
+                      className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                      aria-label="Previous range"
+                    >
+                      {"<"}
+                    </button>
+                    <p className="min-w-0 flex-1 text-sm font-medium">{historyBounds.label}</p>
+                    <button
+                      type="button"
+                      onClick={() => moveHistory(1)}
+                      className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                      aria-label="Next range"
+                    >
+                      {">"}
+                    </button>
+                    {historyRange === "day" && (
+                      <button
+                        type="button"
+                        onClick={jumpHistoryToday}
+                        disabled={isHistoryToday}
+                        className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {t.today}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+                    <div className="rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3">
+                      <div className="text-xs text-[var(--muted)]">{t.total}</div>
+                      <div className="text-2xl font-bold">{historyStats.total}</div>
+                    </div>
+                    <div className="rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3">
+                      <div className="text-xs text-[var(--muted)]">{t.correct}</div>
+                      <div className="text-2xl font-bold">{historyStats.correct}</div>
+                    </div>
+                    <div className="rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3">
+                      <div className="text-xs text-[var(--muted)]">{t.accuracy}</div>
+                      <div className="text-2xl font-bold">{historyStats.accuracy}%</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6">
+                    <h3 className="text-base font-semibold">{t.intervalBreakdown}</h3>
+                    <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+                      {INTERVALS.map((interval) => {
+                        const stat = historyStats.intervalBreakdown[interval.id] ?? { asked: 0, answered: 0, correct: 0 };
+                        const intervalAccuracy = stat.answered > 0 ? (stat.correct / stat.answered) * 100 : 0;
+                        const accuracyLabel = stat.answered > 0 ? `${intervalAccuracy.toFixed(1)}%` : "—";
+
+                        return (
+                          <div
+                            key={`history-${interval.id}`}
+                            className={`rounded-md border p-3 ${breakdownCardClass(stat.answered, intervalAccuracy)}`}
+                          >
+                            <div className="text-sm font-semibold">{intervalDisplayLabel(interval.id, language)}</div>
+                            <div className="mt-2 text-xs opacity-80">
+                              {t.total}: {stat.asked}
+                            </div>
+                            <div className="text-xs opacity-80">
+                              {t.correct}: {stat.correct}
+                            </div>
+                            <div className="mt-1 text-sm font-semibold">
+                              {t.accuracy}: {accuracyLabel}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </section>
+          </div>
         )}
 
         <nav className="sticky bottom-0 z-20 mt-auto rounded-xl border border-[var(--border)] bg-[color-mix(in_oklab,var(--card)_92%,transparent)] p-2 shadow-sm backdrop-blur">
