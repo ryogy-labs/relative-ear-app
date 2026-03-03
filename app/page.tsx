@@ -159,7 +159,7 @@ const I18N: Record<Language, UiText> = {
     melodic: "Melodic",
     harmony: "Harmony",
     modeHelp:
-      "Harmony:\nTwo notes play together.\nThe lower note is the reference.\n\nMelodic:\nNotes play one after another.\nThe first note is the reference.",
+      "Melodic:\nTwo notes play one after another.\nThe first note is the reference.\n\nHarmony:\nTwo notes play together.\nThe lower note is the reference.",
     direction: "Melodic Direction",
     ascending: "Ascending",
     descending: "Descending",
@@ -255,8 +255,8 @@ const I18N: Record<Language, UiText> = {
     melodic: "メロディック",
     harmony: "ハーモニー",
     modeHelp:
-      "ハーモニー:\n2音を同時に鳴らします。\n低い音が基準音です。\n\nメロディック:\n2音を順番に鳴らします。\n最初の音が基準音です。",
-    direction: "メロディック方向",
+      "メロディック:\n2音を順番に鳴らします。\n最初の音が基準音です。\n\nハーモニー:\n2音を同時に鳴らします。\n低い音が基準音です。",
+    direction: "音の向き",
     ascending: "上行",
     descending: "下行",
     random: "ランダム",
@@ -268,9 +268,9 @@ const I18N: Record<Language, UiText> = {
     buttonSize: "ボタンサイズ",
     large: "大",
     small: "小",
-    short: "短い",
-    medium: "中くらい",
-    long: "長い",
+    short: "短",
+    medium: "中",
+    long: "長",
     intervalPool: "出題音程プール",
     practice: "練習",
     practiceHelp: "音を聴いて、度数を選択。",
@@ -298,7 +298,7 @@ const I18N: Record<Language, UiText> = {
     keyboardHelp: "鍵盤をタップして音程を確認できます。",
     showKeyboard: "キーボードを表示",
     closeKeyboard: "キーボードを閉じる",
-    intervalBreakdown: "Interval Breakdown",
+    intervalBreakdown: "音程別成績",
     resetStats: "統計をリセット",
     soundEffects: "効果音",
     forceProDev: "Pro強制（開発）",
@@ -1977,16 +1977,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="mt-6 flex items-center justify-between gap-3">
-                <h3 className="text-base font-semibold">{t.intervalBreakdown}</h3>
-                <button
-                  type="button"
-                  onClick={handleResetStats}
-                  className="rounded-md border border-[var(--border)] px-3 py-2 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                >
-                  {t.resetStats}
-                </button>
-              </div>
+              <h3 className="mt-6 text-base font-semibold">{t.intervalBreakdown}</h3>
 
               <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
                 {INTERVALS.map((interval) => {
