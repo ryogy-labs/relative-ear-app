@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AudioEngine, type InstrumentKey, type SampleStatus } from "./lib/audioEngine";
+import { getIsPro, setIsPro as persistIsPro } from "./lib/entitlements";
 
 type Interval = {
   id: string;
@@ -100,6 +101,8 @@ type UiText = {
   intervalBreakdown: string;
   resetStats: string;
   soundEffects: string;
+  proDev: string;
+  proOnlyInstruments: string;
   on: string;
   off: string;
   loading: string;
@@ -172,6 +175,8 @@ const I18N: Record<Language, UiText> = {
     intervalBreakdown: "Interval Breakdown",
     resetStats: "Reset Stats",
     soundEffects: "Sound Effects",
+    proDev: "Pro (dev)",
+    proOnlyInstruments: "Piano and Guitar are Pro features.",
     on: "ON",
     off: "OFF",
     loading: "Loading...",
@@ -242,6 +247,8 @@ const I18N: Record<Language, UiText> = {
     intervalBreakdown: "Interval Breakdown",
     resetStats: "統計をリセット",
     soundEffects: "効果音",
+    proDev: "Pro（開発）",
+    proOnlyInstruments: "ピアノとギターはPro機能です。",
     on: "ON",
     off: "OFF",
     loading: "読み込み中...",
@@ -548,12 +555,7 @@ export default function Home() {
   const [sfxEnabled, setSfxEnabled] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<AppTab>("practice");
   const [keyboardVisible, setKeyboardVisible] = useState<boolean>(true);
-  const [isPro] = useState<boolean>(() => {
-    if (typeof window === "undefined") {
-      return false;
-    }
-    return window.localStorage.getItem("relative-ear.isPro") === "true";
-  });
+  const [isPro, setIsProState] = useState<boolean>(false);
   const [historyRange, setHistoryRange] = useState<HistoryRange>("day");
   const [historyAnchor, setHistoryAnchor] = useState<Date>(() => startOfDay(new Date()));
 
@@ -658,6 +660,23 @@ export default function Home() {
     }
     window.localStorage.setItem("relative-ear.instrument", instrument);
   }, [instrument]);
+
+  useEffect(() => {
+    let active = true;
+    const loadEntitlements = async () => {
+      const nextIsPro = await getIsPro();
+      if (active) {
+        setIsProState(nextIsPro);
+        if (!nextIsPro) {
+          setInstrument("synth");
+        }
+      }
+    };
+    void loadEntitlements();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const unsubscribe = audioEngineRef.current.subscribe((status) => {
@@ -1045,6 +1064,13 @@ export default function Home() {
     setHistoryAnchor(startOfDay(new Date()));
   };
   const isHistoryToday = isSameDay(historyAnchor, new Date());
+  const toggleProDev = async (value: boolean) => {
+    setIsProState(value);
+    if (!value) {
+      setInstrument("synth");
+    }
+    await persistIsPro(value);
+  };
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 py-10 text-[var(--text)] max-[480px]:px-4 max-[480px]:py-5">
@@ -1104,6 +1130,34 @@ export default function Home() {
                 onClick={() => setSfxEnabled(false)}
                 className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
                   !sfxEnabled
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.off}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.proDev}</h3>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => void toggleProDev(true)}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  isPro
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.on}
+              </button>
+              <button
+                type="button"
+                onClick={() => void toggleProDev(false)}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  !isPro
                     ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
                     : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
                 }`}
@@ -1201,27 +1255,46 @@ export default function Home() {
               </button>
               <button
                 type="button"
-                onClick={() => setInstrument("piano")}
+                onClick={() => {
+                  if (!isPro) return;
+                  setInstrument("piano");
+                }}
+                disabled={!isPro}
                 className={`rounded-md border px-3 py-2 text-sm font-medium ${
                   instrument === "piano"
                     ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
                     : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-50`}
               >
                 {t.piano}
               </button>
               <button
                 type="button"
-                onClick={() => setInstrument("guitar")}
+                onClick={() => {
+                  if (!isPro) return;
+                  setInstrument("guitar");
+                }}
+                disabled={!isPro}
                 className={`rounded-md border px-3 py-2 text-sm font-medium ${
                   instrument === "guitar"
                     ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
                     : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-50`}
               >
                 {t.guitar}
               </button>
             </div>
+            {!isPro && (
+              <div className="mt-2 rounded-md border border-[var(--border)] bg-[color-mix(in_oklab,var(--text)_4%,transparent)] p-3">
+                <p className="text-xs text-[var(--muted)]">{t.proOnlyInstruments}</p>
+                <button
+                  type="button"
+                  className="mt-2 rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--bg)]"
+                >
+                  {t.upgradeToPro}
+                </button>
+              </div>
+            )}
             {(instrument === "piano" || instrument === "guitar") && (
               <p className="mt-2 text-xs text-[var(--muted)]">
                 {sampleStatus[instrument] === "downloading" && t.downloading}
