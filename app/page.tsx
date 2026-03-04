@@ -1397,33 +1397,6 @@ export default function Home() {
 
         <div className="mt-4 grid items-start gap-x-6 gap-y-6 md:grid-cols-2">
           <div>
-            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.presets}</h3>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => applyPreset("beginner")}
-                className={presetButtonClass("beginner")}
-              >
-                {t.beginner}
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPreset("basic")}
-                className={presetButtonClass("basic")}
-              >
-                {t.basic}
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPreset("jazzIntro")}
-                className={presetButtonClass("jazzIntro")}
-              >
-                {t.jazzIntro}
-              </button>
-            </div>
-          </div>
-
-          <div>
             <h3 className="text-sm font-semibold text-[var(--muted)]">{t.noteLength}</h3>
             <div className="mt-2 flex gap-2">
               <button
@@ -1532,51 +1505,6 @@ export default function Home() {
             {instrumentFallbackMessage && (
               <p className="mt-2 text-xs text-[var(--muted)]">{instrumentFallbackMessage}</p>
             )}
-          </div>
-
-          <div>
-            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.buttonSize}</h3>
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setButtonSize("large");
-                }}
-                className={`rounded-md border px-3 py-2 text-sm font-medium ${
-                  buttonSize === "large"
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                }`}
-              >
-                {t.large}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setButtonSize("medium");
-                }}
-                className={`rounded-md border px-3 py-2 text-sm font-medium ${
-                  buttonSize === "medium"
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                }`}
-              >
-                {t.medium}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setButtonSize("small");
-                }}
-                className={`rounded-md border px-3 py-2 text-sm font-medium ${
-                  buttonSize === "small"
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-                    : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                }`}
-              >
-                {t.small}
-              </button>
-            </div>
           </div>
 
           <div>
@@ -1709,6 +1637,33 @@ export default function Home() {
         </div>
 
         <div className="mt-6">
+          <h3 className="text-sm font-semibold text-[var(--muted)]">{t.presets}</h3>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => applyPreset("beginner")}
+              className={presetButtonClass("beginner")}
+            >
+              {t.beginner}
+            </button>
+            <button
+              type="button"
+              onClick={() => applyPreset("basic")}
+              className={presetButtonClass("basic")}
+            >
+              {t.basic}
+            </button>
+            <button
+              type="button"
+              onClick={() => applyPreset("jazzIntro")}
+              className={presetButtonClass("jazzIntro")}
+            >
+              {t.jazzIntro}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6">
           <h3 className="text-sm font-semibold text-[var(--muted)]">{t.intervalPool}</h3>
           {isPro ? (
             <div className={`mt-2 grid ${answerGridColumnsClass} gap-2`}>
@@ -1764,6 +1719,51 @@ export default function Home() {
               </div>
             </div>
           )}
+        </div>
+
+        <div className="mt-6">
+          <h3 className="text-sm font-semibold text-[var(--muted)]">{t.buttonSize}</h3>
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setButtonSize("large");
+              }}
+              className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                buttonSize === "large"
+                  ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                  : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+              }`}
+            >
+              {t.large}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setButtonSize("medium");
+              }}
+              className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                buttonSize === "medium"
+                  ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                  : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+              }`}
+            >
+              {t.medium}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setButtonSize("small");
+              }}
+              className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                buttonSize === "small"
+                  ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                  : "border-[var(--border)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+              }`}
+            >
+              {t.small}
+            </button>
+          </div>
         </div>
             </section>
 
