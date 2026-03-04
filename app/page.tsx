@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AudioEngine, type InstrumentKey, type SampleStatus } from "./lib/audioEngine";
 import { getIsPro, setIsPro as persistIsPro } from "./lib/entitlements";
+import {
+  buildQuestionKey,
+  runQuestionIdentityLightweightChecks,
+  shouldRerollConsecutiveFixedQuestion,
+} from "./lib/questionIdentity";
 import { useProUpsell } from "./lib/useProUpsell";
 import {
   aggregateDailyRange,
@@ -32,6 +37,7 @@ type ResolvedDirection = "ascending" | "descending";
 type PresetKey = "beginner" | "basic" | "jazzIntro";
 type Language = "en" | "ja";
 type NoteLengthKey = "short" | "medium" | "long";
+type RootMode = "random" | "fixedC";
 type ButtonSizeKey = "large" | "medium" | "small";
 type AppTab = "practice" | "stats" | "settings";
 type HistoryRange = "day" | "week" | "month";
@@ -67,6 +73,8 @@ type UiText = {
   descending: string;
   random: string;
   noteLength: string;
+  rootMode: string;
+  fixedC: string;
   instrument: string;
   synth: string;
   piano: string;
@@ -165,6 +173,8 @@ const I18N: Record<Language, UiText> = {
     descending: "Descending",
     random: "Random",
     noteLength: "Note Length",
+    rootMode: "Root Mode",
+    fixedC: "C Fixed",
     instrument: "Instrument",
     synth: "Synth",
     piano: "Piano",
@@ -261,6 +271,8 @@ const I18N: Record<Language, UiText> = {
     descending: "下行",
     random: "ランダム",
     noteLength: "音の長さ",
+    rootMode: "ルートモード",
+    fixedC: "C固定",
     instrument: "音色",
     synth: "シンセ",
     piano: "ピアノ",
@@ -399,6 +411,18 @@ function resolveDirection(setting: DirectionSetting): ResolvedDirection {
   return setting;
 }
 
+function resolveRootMidi(
+  rootMode: RootMode,
+  mode: TrainingMode,
+  direction: ResolvedDirection,
+): number | null {
+  if (rootMode === "random") {
+    return null;
+  }
+  // Keep C as the root pitch class while staying in visible keyboard range.
+  return mode === "melodic" && direction === "descending" ? 72 : 60;
+}
+
 function playedBaseDistance(
   answerSemitones: number,
   mode: TrainingMode,
@@ -516,6 +540,7 @@ function getHistoryRangeBounds(range: HistoryRange, anchor: Date): { startDate: 
 
 const IS_DEV_BUILD = process.env.NODE_ENV !== "production";
 const SHOW_DEV_TOOLS = true;
+const FIXED_ROOT_REROLL_MAX_TRIES = 10;
 
 function useSfx(enabled: boolean) {
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -604,6 +629,14 @@ export default function Home() {
   const [mode, setMode] = useState<TrainingMode>("melodic");
   const [directionSetting, setDirectionSetting] = useState<DirectionSetting>("random");
   const [noteLength, setNoteLength] = useState<NoteLengthKey>("short");
+  const [rootMode, setRootMode] = useState<RootMode>(() => {
+    if (typeof window === "undefined") {
+      return "random";
+    }
+
+    const saved = window.localStorage.getItem("relative-ear.rootMode");
+    return saved === "fixedC" ? "fixedC" : "random";
+  });
   const [instrument, setInstrument] = useState<InstrumentKey>(() => {
     if (typeof window === "undefined") {
       return "synth";
@@ -644,6 +677,7 @@ export default function Home() {
   const [submittedChoiceId, setSubmittedChoiceId] = useState<string | null>(null);
   const [statsStore, setStatsStore] = useState<StatsStore>(createEmptyStatsStore);
   const keyboardScrollRef = useRef<HTMLDivElement | null>(null);
+  const previousQuestionKeyRef = useRef<string | null>(null);
   const scheduledPlaybackRef = useRef<number[]>([]);
   const audioEngineRef = useRef<AudioEngine>(new AudioEngine());
   const [instrumentFallbackMessage, setInstrumentFallbackMessage] = useState<string | null>(null);
@@ -730,6 +764,13 @@ export default function Home() {
     if (typeof window === "undefined") {
       return;
     }
+    window.localStorage.setItem("relative-ear.rootMode", rootMode);
+  }, [rootMode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
     window.localStorage.setItem("relative-ear.instrument", instrument);
   }, [instrument]);
 
@@ -763,6 +804,13 @@ export default function Home() {
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    if (!IS_DEV_BUILD) {
+      return;
+    }
+    runQuestionIdentityLightweightChecks();
   }, []);
 
   useEffect(() => {
@@ -817,16 +865,33 @@ export default function Home() {
   const createRound = (): Round | null => {
     if (questionPool.length === 0) {
       setCurrentRound(null);
+      previousQuestionKeyRef.current = null;
       return null;
     }
 
+    let fixedModeRerollAttempts = 0;
     for (let i = 0; i < 40; i += 1) {
       const nextAnswer = pickRandom(questionPool);
       const nextDirection = resolveDirection(directionSetting);
+      const rootMidi = resolveRootMidi(rootMode, mode, nextDirection);
       const baseDistance = playedBaseDistance(nextAnswer.semitones, mode, nextDirection);
-      const possibleDistances = distanceOptions(baseDistance, maxRange).filter(
-        (distance) => distance <= KEYBOARD_MAX_MIDI - KEYBOARD_MIN_MIDI,
-      );
+      const maxFixedDistance =
+        rootMidi == null
+          ? KEYBOARD_MAX_MIDI - KEYBOARD_MIN_MIDI
+          :
+        mode === "melodic" && nextDirection === "descending"
+          ? rootMidi - KEYBOARD_MIN_MIDI
+          : KEYBOARD_MAX_MIDI - rootMidi;
+
+      const possibleDistances = distanceOptions(baseDistance, maxRange).filter((distance) => {
+        if (distance > KEYBOARD_MAX_MIDI - KEYBOARD_MIN_MIDI) {
+          return false;
+        }
+        if (rootMidi != null) {
+          return distance <= maxFixedDistance;
+        }
+        return true;
+      });
 
       if (possibleDistances.length === 0) {
         continue;
@@ -834,28 +899,38 @@ export default function Home() {
 
       const nextDistance = pickRandom(possibleDistances);
 
-      let note1Min = KEYBOARD_MIN_MIDI;
-      let note1Max = KEYBOARD_MAX_MIDI;
-
-      if (mode === "melodic" && nextDirection === "descending") {
-        note1Min = KEYBOARD_MIN_MIDI + nextDistance;
-        note1Max = KEYBOARD_MAX_MIDI;
+      let note1 = 60;
+      if (rootMidi != null) {
+        note1 = rootMidi;
       } else {
-        note1Min = KEYBOARD_MIN_MIDI;
-        note1Max = KEYBOARD_MAX_MIDI - nextDistance;
+        let note1Min = KEYBOARD_MIN_MIDI;
+        let note1Max = KEYBOARD_MAX_MIDI;
+
+        if (mode === "melodic" && nextDirection === "descending") {
+          note1Min = KEYBOARD_MIN_MIDI + nextDistance;
+          note1Max = KEYBOARD_MAX_MIDI;
+        } else {
+          note1Min = KEYBOARD_MIN_MIDI;
+          note1Max = KEYBOARD_MAX_MIDI - nextDistance;
+        }
+
+        if (note1Min > note1Max) {
+          continue;
+        }
+
+        note1 = pickRandomInt(note1Min, note1Max);
       }
 
-      if (note1Min > note1Max) {
-        continue;
-      }
-
-      const note1 = pickRandomInt(note1Min, note1Max);
       const note2 =
         mode === "melodic"
           ? nextDirection === "ascending"
             ? note1 + nextDistance
             : note1 - nextDistance
           : note1 + nextDistance;
+
+      if (note2 < KEYBOARD_MIN_MIDI || note2 > KEYBOARD_MAX_MIDI) {
+        continue;
+      }
 
       const round: Round = {
         answerId: nextAnswer.id,
@@ -864,8 +939,31 @@ export default function Home() {
         note1Midi: note1,
         note2Midi: note2,
       };
+      const candidateKey = buildQuestionKey({
+        rootMidi: round.note1Midi,
+        intervalId: round.answerId,
+        mode,
+        direction: round.direction,
+        note1Midi: round.note1Midi,
+        note2Midi: round.note2Midi,
+      });
+
+      if (
+        shouldRerollConsecutiveFixedQuestion({
+          rootMode,
+          previousKey: previousQuestionKeyRef.current,
+          candidateKey,
+          intervalPoolSize: questionPool.length,
+          rerollAttempts: fixedModeRerollAttempts,
+          maxRerolls: FIXED_ROOT_REROLL_MAX_TRIES,
+        })
+      ) {
+        fixedModeRerollAttempts += 1;
+        continue;
+      }
 
       setCurrentRound(round);
+      previousQuestionKeyRef.current = candidateKey;
       setResultStatus("idle");
       setResultAnswerLabel("");
       setAnswered(false);
@@ -1508,6 +1606,34 @@ export default function Home() {
               </button>
             </div>
             <p className="mt-2 text-xs text-[var(--muted)]">{t.rangeHelp}</p>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.rootMode}</h3>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setRootMode("random")}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  rootMode === "random"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.random}
+              </button>
+              <button
+                type="button"
+                onClick={() => setRootMode("fixedC")}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  rootMode === "fixedC"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.fixedC}
+              </button>
+            </div>
           </div>
 
           <div>
