@@ -86,6 +86,7 @@ type UiText = {
   medium: string;
   long: string;
   intervalPool: string;
+  minOneIntervalAlert: string;
   practice: string;
   practiceHelp: string;
   play: string;
@@ -186,6 +187,7 @@ const I18N: Record<Language, UiText> = {
     medium: "Medium",
     long: "Long",
     intervalPool: "Interval Pool",
+    minOneIntervalAlert: "Please select at least one interval.",
     practice: "Practice",
     practiceHelp: "Listen. Feel the distance. Choose the interval.",
     play: "Play",
@@ -284,6 +286,7 @@ const I18N: Record<Language, UiText> = {
     medium: "中",
     long: "長",
     intervalPool: "出題音程プール",
+    minOneIntervalAlert: "最低1つは選択してください。",
     practice: "練習",
     practiceHelp: "音を聴いて、度数を選択。",
     play: "再生",
@@ -675,6 +678,7 @@ export default function Home() {
   const [resultAnswerLabel, setResultAnswerLabel] = useState<string>("");
   const [answered, setAnswered] = useState<boolean>(false);
   const [submittedChoiceId, setSubmittedChoiceId] = useState<string | null>(null);
+  const [intervalPoolAlert, setIntervalPoolAlert] = useState<boolean>(false);
   const [statsStore, setStatsStore] = useState<StatsStore>(createEmptyStatsStore);
   const keyboardScrollRef = useRef<HTMLDivElement | null>(null);
   const previousQuestionKeyRef = useRef<string | null>(null);
@@ -1052,9 +1056,15 @@ export default function Home() {
   const toggleInterval = (intervalId: string) => {
     setSelectedIntervalIds((prev) => {
       if (prev.includes(intervalId)) {
+        if (prev.length <= 1) {
+          setIntervalPoolAlert(true);
+          return prev;
+        }
+        setIntervalPoolAlert(false);
         return prev.filter((id) => id !== intervalId);
       }
 
+      setIntervalPoolAlert(false);
       return [...prev, intervalId];
     });
 
@@ -1066,6 +1076,7 @@ export default function Home() {
 
   const applyPreset = (preset: PresetKey) => {
     setSelectedIntervalIds(PRESETS[preset]);
+    setIntervalPoolAlert(false);
     setResultStatus("idle");
     setResultAnswerLabel("");
     setAnswered(false);
@@ -1718,6 +1729,11 @@ export default function Home() {
                 })}
               </div>
             </div>
+          )}
+          {intervalPoolAlert && isPro && (
+            <p className="mt-2 rounded-md border border-[var(--incorrect-border)] bg-[color-mix(in_oklab,var(--incorrect)_30%,transparent)] p-2 text-sm text-[var(--text)]">
+              {t.minOneIntervalAlert}
+            </p>
           )}
         </div>
 
