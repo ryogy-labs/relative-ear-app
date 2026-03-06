@@ -69,12 +69,14 @@ type UiText = {
   harmony: string;
   modeHelp: string;
   direction: string;
+  directionHelp: string;
   ascending: string;
   descending: string;
   random: string;
   noteLength: string;
   rootMode: string;
   fixedC: string;
+  rootModeHelp: string;
   instrument: string;
   synth: string;
   piano: string;
@@ -170,12 +172,16 @@ const I18N: Record<Language, UiText> = {
     modeHelp:
       "Melodic:\nTwo notes play one after another.\nThe first note is the reference.\n\nHarmony:\nTwo notes play together.\nThe lower note is the reference.",
     direction: "Melodic Direction",
+    directionHelp:
+      "Ascending plays upward from the first note, Descending plays downward, and Random chooses either each time. This setting applies only in Melodic mode.",
     ascending: "Ascending",
     descending: "Descending",
     random: "Random",
     noteLength: "Note Length",
     rootMode: "Root Mode",
     fixedC: "C Fixed",
+    rootModeHelp:
+      "Random changes the reference note each question. C Fixed always uses C as the reference note.",
     instrument: "Instrument",
     synth: "Synth",
     piano: "Piano",
@@ -269,12 +275,14 @@ const I18N: Record<Language, UiText> = {
     modeHelp:
       "メロディック:\n2音を順番に鳴らします。\n最初の音が基準音です。\n\nハーモニー:\n2音を同時に鳴らします。\n低い音が基準音です。",
     direction: "音の向き",
-    ascending: "上行",
-    descending: "下行",
+    directionHelp: "上は1音目より高い音、下は1音目より低い音、ランダムは毎回どちらかで出題。",
+    ascending: "上",
+    descending: "下",
     random: "ランダム",
     noteLength: "音の長さ",
     rootMode: "ルートモード",
     fixedC: "C固定",
+    rootModeHelp: "ランダムは毎回基準音が変わります。C固定は常にCを基準音にします。",
     instrument: "音色",
     synth: "シンセ",
     piano: "ピアノ",
@@ -1573,6 +1581,36 @@ export default function Home() {
                 {t.fixedC}
               </button>
             </div>
+            <p className="mt-2 text-xs text-[var(--muted)]">{t.rootModeHelp}</p>
+          </div>
+
+          <div className="md:col-span-2">
+            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.mode}</h3>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setMode("melodic")}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  mode === "melodic"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.melodic}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("harmony")}
+                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  mode === "harmony"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
+                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
+                }`}
+              >
+                {t.harmony}
+              </button>
+            </div>
+            <p className="mt-2 whitespace-pre-line text-xs text-[var(--muted)]">{t.modeHelp}</p>
           </div>
 
           <div>
@@ -1615,35 +1653,7 @@ export default function Home() {
                 {t.random}
               </button>
             </div>
-          </div>
-
-          <div className="md:col-span-2">
-            <h3 className="text-sm font-semibold text-[var(--muted)]">{t.mode}</h3>
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setMode("melodic")}
-                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                  mode === "melodic"
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                }`}
-              >
-                {t.melodic}
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("harmony")}
-                className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                  mode === "harmony"
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg)]"
-                    : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
-                }`}
-              >
-                {t.harmony}
-              </button>
-            </div>
-            <p className="mt-2 whitespace-pre-line text-xs text-[var(--muted)]">{t.modeHelp}</p>
+            <p className="mt-2 text-xs text-[var(--muted)]">{t.directionHelp}</p>
           </div>
         </div>
 
