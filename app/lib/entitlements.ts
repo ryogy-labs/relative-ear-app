@@ -15,12 +15,31 @@ function getCapacitorPreferences(): PreferencesPlugin | null {
   return maybeCapacitor?.Plugins?.Preferences ?? null;
 }
 
+async function persistDefaultFreePlan(preferences: PreferencesPlugin | null): Promise<void> {
+  if (preferences) {
+    try {
+      await preferences.set({ key: PRO_ENTITLEMENT_KEY, value: "false" });
+      return;
+    } catch {
+      // Fall back to localStorage
+    }
+  }
+
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(PRO_ENTITLEMENT_KEY, "false");
+  }
+}
+
 export async function getIsPro(): Promise<boolean> {
   const preferences = getCapacitorPreferences();
 
   if (preferences) {
     try {
       const result = await preferences.get({ key: PRO_ENTITLEMENT_KEY });
+      if (result.value == null) {
+        await persistDefaultFreePlan(preferences);
+        return false;
+      }
       return result.value === "true";
     } catch {
       // Fall back to localStorage
@@ -31,7 +50,13 @@ export async function getIsPro(): Promise<boolean> {
     return false;
   }
 
-  return window.localStorage.getItem(PRO_ENTITLEMENT_KEY) === "true";
+  const value = window.localStorage.getItem(PRO_ENTITLEMENT_KEY);
+  if (value == null) {
+    await persistDefaultFreePlan(null);
+    return false;
+  }
+
+  return value === "true";
 }
 
 export async function setIsPro(value: boolean): Promise<void> {

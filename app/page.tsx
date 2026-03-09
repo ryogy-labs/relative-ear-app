@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { AudioEngine, type InstrumentKey, type SampleStatus } from "./lib/audioEngine";
 import { getIsPro, setIsPro as persistIsPro } from "./lib/entitlements";
 import {
@@ -550,7 +551,7 @@ function getHistoryRangeBounds(range: HistoryRange, anchor: Date): { startDate: 
 }
 
 const IS_DEV_BUILD = process.env.NODE_ENV !== "production";
-const SHOW_DEV_TOOLS = true;
+const SHOW_DEV_TOOLS = typeof window === "undefined" ? true : Capacitor.getPlatform() !== "ios";
 const FIXED_ROOT_REROLL_MAX_TRIES = 10;
 
 function useSfx(enabled: boolean) {
