@@ -1218,16 +1218,24 @@ export default function Home() {
 
   const tabButtonClass = (tab: AppTab): string => {
     if (activeTab === tab) {
-      return "rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-[var(--bg)]";
+      return "flex-1 rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-[var(--bg)]";
     }
 
-    return "rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-semibold text-[var(--text)]";
+    return "flex-1 rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm font-semibold text-[var(--text)]";
   };
 
   const answerGridColumnsClass =
     buttonSize === "large" ? "grid-cols-2" : buttonSize === "medium" ? "grid-cols-3" : "grid-cols-4";
   const practiceControlButtonBase =
     "rounded-md px-5 py-3 text-sm font-semibold leading-5 transition disabled:cursor-not-allowed disabled:opacity-40";
+  const primaryCardTopPaddingClass = "pt-3";
+  const primaryCardHeaderClass = "space-y-px";
+  const primaryCardTitleClass = "text-xl font-semibold leading-tight";
+  const primaryCardHelpClass = "text-xs leading-tight text-[var(--muted)]";
+  const bottomNavShellClass =
+    "fixed inset-x-0 bottom-0 z-20 border-t border-[var(--border)] bg-[color-mix(in_oklab,var(--card)_96%,transparent)] backdrop-blur";
+  const bottomNavCardClass =
+    "mx-auto flex max-w-5xl gap-2 px-5 pb-[calc(env(safe-area-inset-bottom,0px)+4px)] pt-1.5 sm:px-6";
   const moveHistory = (direction: -1 | 1) => {
     setHistoryAnchor((prev) => {
       if (historyRange === "day") {
@@ -1313,10 +1321,10 @@ export default function Home() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 py-10 text-[var(--text)] max-[480px]:px-4 max-[480px]:py-5">
-      <h1 className="text-center text-3xl font-bold">{t.title}</h1>
+    <main className="app-shell mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 pb-[calc(env(safe-area-inset-bottom,0px)+96px)] text-[var(--text)] max-[480px]:px-4 max-[480px]:pb-[calc(env(safe-area-inset-bottom,0px)+92px)]">
+      <h1 className="text-center text-3xl font-bold leading-tight">{t.title}</h1>
 
-      <div className="mt-8 flex flex-1 flex-col gap-8 max-[480px]:mt-4 max-[480px]:gap-4">
+      <div className="mt-4 flex flex-1 flex-col gap-8 max-[480px]:mt-2 max-[480px]:gap-4">
         {activeTab === "settings" && (
           <>
             <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
@@ -1915,11 +1923,13 @@ export default function Home() {
 
         {activeTab === "practice" && (
           <>
-            <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm max-[480px]:p-4">
-        <h2 className="text-xl font-semibold">{t.practice}</h2>
-        <p className="mt-2 text-sm text-[var(--muted)]">{t.practiceHelp}</p>
+            <section className={`rounded-xl border border-[var(--border)] bg-[var(--card)] px-5 pb-5 ${primaryCardTopPaddingClass} shadow-sm max-[480px]:px-3 max-[480px]:pb-3`}>
+        <div className={primaryCardHeaderClass}>
+          <h2 className={primaryCardTitleClass}>{t.practice}</h2>
+          <p className={primaryCardHelpClass}>{t.practiceHelp}</p>
+        </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
           <button
             type="button"
             onClick={playInterval}
@@ -1940,12 +1950,12 @@ export default function Home() {
         </div>
 
         {resultStatus !== "idle" && (
-          <div className="mt-2">
+          <div className="mt-1">
             {resultStatus === "correct" && (
               <p className="text-xl font-semibold text-[var(--correct-text)]">✓ Correct</p>
             )}
             {resultStatus === "incorrect" && (
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <p className="text-[1.1rem] font-semibold text-[#dc2626]">✗ Incorrect</p>
                 <p className="text-sm font-medium">
                   <span className="text-[var(--muted)]">Correct answer: </span>
@@ -1957,9 +1967,9 @@ export default function Home() {
         )}
 
         {questionPool.length === 0 ? (
-          <p className="mt-5 rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3 text-sm">{t.selectOne}</p>
+          <p className="mt-3 rounded-md bg-[color-mix(in_oklab,var(--text)_6%,transparent)] p-3 text-sm">{t.selectOne}</p>
         ) : (
-          <div className={`${resultStatus !== "idle" ? "mt-2" : "mt-6"} grid ${answerGridColumnsClass} gap-3`}>
+          <div className={`${resultStatus !== "idle" ? "mt-1" : "mt-3"} grid ${answerGridColumnsClass} gap-3`}>
             {questionPool.map((interval) => (
               <button
                 key={interval.id}
@@ -1988,11 +1998,11 @@ export default function Home() {
             </section>
 
         {answered && currentRound && keyboardVisible && (
-          <section className="relative left-1/2 mt-3 w-[calc(100vw-16px)] max-w-[calc(100vw-16px)] -translate-x-1/2 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] px-2 py-4 shadow-sm max-[480px]:mt-2 max-[480px]:py-3 sm:left-0 sm:w-auto sm:max-w-none sm:translate-x-0 sm:p-4">
+          <section className={`relative left-1/2 mt-1 w-[calc(100vw-16px)] max-w-[calc(100vw-16px)] -translate-x-1/2 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] px-2 pb-3 ${primaryCardTopPaddingClass} shadow-sm max-[480px]:mt-0.5 max-[480px]:pb-2.5 sm:left-0 sm:w-auto sm:max-w-none sm:translate-x-0 sm:px-3 sm:pb-3`}>
             <div className="flex items-start justify-between gap-3">
-              <div>
-            <h2 className="text-xl font-semibold">{t.keyboard}</h2>
-            <p className="mt-1 text-xs text-[var(--muted)]">{t.keyboardHelp}</p>
+              <div className={primaryCardHeaderClass}>
+            <h2 className={primaryCardTitleClass}>{t.keyboard}</h2>
+            <p className={primaryCardHelpClass}>{t.keyboardHelp}</p>
               </div>
               <button
                 type="button"
@@ -2004,7 +2014,7 @@ export default function Home() {
               </button>
             </div>
 
-            <div ref={keyboardScrollRef} className="mt-4 w-full overflow-x-auto">
+            <div ref={keyboardScrollRef} className="mt-3 w-full overflow-x-auto">
                 <div
                   className="relative h-[220px] overflow-hidden rounded-md bg-[color-mix(in_oklab,var(--text)_3%,transparent)]"
                   style={{
@@ -2288,8 +2298,8 @@ export default function Home() {
           </div>
         )}
 
-        <nav className="sticky bottom-0 z-20 mt-auto rounded-xl border border-[var(--border)] bg-[color-mix(in_oklab,var(--card)_92%,transparent)] p-2 shadow-sm backdrop-blur">
-          <div className="grid grid-cols-3 gap-2">
+        <nav className={bottomNavShellClass}>
+          <div className={bottomNavCardClass}>
             <button type="button" className={tabButtonClass("practice")} onClick={() => setActiveTab("practice")}>
               {t.practice}
             </button>

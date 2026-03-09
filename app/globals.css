@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  --safe-area-top: env(safe-area-inset-top, 0px);
   --bg: #ffffff;
   --card: #ffffff;
   --text: #171717;
@@ -60,9 +61,21 @@
 }
 
 body {
+  min-height: 100vh;
+  padding-top: calc(var(--safe-area-top) + clamp(0px, var(--safe-area-top), 2px));
   background: var(--bg);
   color: var(--text);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.app-shell {
+  padding-top: max(0px, calc(0.375rem - min(var(--safe-area-top), 0.375rem)));
+}
+
+@media (max-width: 480px) {
+  .app-shell {
+    padding-top: max(0px, calc(0.125rem - min(var(--safe-area-top), 0.125rem)));
+  }
 }
 
 input[type="radio"],
