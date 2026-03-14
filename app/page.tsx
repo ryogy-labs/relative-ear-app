@@ -257,7 +257,7 @@ const I18N: Record<Language, UiText> = {
     purchasesComingSoon: "Purchases coming soon",
   },
   ja: {
-    title: "音程イヤートレーナー",
+    title: "相対音感トレーナー",
     settings: "設定",
     systemSettings: "システム設定",
     practiceSettings: "練習設定",
@@ -314,9 +314,9 @@ const I18N: Record<Language, UiText> = {
     total: "総数",
     correct: "正解",
     accuracy: "正答率",
-    correctFeedback: "Correct!",
-    incorrectFeedback: "Incorrect.",
-    correctAnswer: "Correct answer:",
+    correctFeedback: "正解",
+    incorrectFeedback: "不正解",
+    correctAnswer: "正解の音程",
     octaveLabel: "オクターブ",
     keyboard: "キーボード",
     keyboardHelp: "鍵盤をタップして音程を確認できます。",
@@ -1953,13 +1953,13 @@ export default function Home() {
         {resultStatus !== "idle" && (
           <div className="mt-1">
             {resultStatus === "correct" && (
-              <p className="text-xl font-semibold text-[var(--correct-text)]">✓ Correct</p>
+              <p className="text-xl font-semibold text-[var(--correct-text)]">✓ {t.correctFeedback}</p>
             )}
             {resultStatus === "incorrect" && (
               <div className="space-y-0.5">
-                <p className="text-[1.1rem] font-semibold text-[#dc2626]">✗ Incorrect</p>
+                <p className="text-[1.1rem] font-semibold text-[#dc2626]">✗ {t.incorrectFeedback}</p>
                 <p className="text-sm font-medium">
-                  <span className="text-[var(--muted)]">Correct answer: </span>
+                  <span className="text-[var(--muted)]">{t.correctAnswer}: </span>
                   <span className="font-semibold text-[var(--correct-text)]">{resultAnswerLabel}</span>
                 </p>
               </div>
