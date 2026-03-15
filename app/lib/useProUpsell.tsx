@@ -9,10 +9,17 @@ type ProUpsellCopy = {
   pricingNote: string;
   continueLabel: string;
   notNowLabel: string;
-  purchasesComingSoon: string;
+  restoreLabel: string;
 };
 
-export function useProUpsell(copy: ProUpsellCopy) {
+type ProUpsellOptions = {
+  onContinue: () => Promise<string | null> | string | null;
+  onRestore: () => Promise<string | null> | string | null;
+  showRestore: boolean;
+  isBusy: boolean;
+};
+
+export function useProUpsell(copy: ProUpsellCopy, options: ProUpsellOptions) {
   const [isOpen, setIsOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
@@ -44,10 +51,21 @@ export function useProUpsell(copy: ProUpsellCopy) {
     [clearToastTimer],
   );
 
-  const handleContinue = useCallback(() => {
+  const handleContinue = useCallback(async () => {
+    const message = await options.onContinue();
     setIsOpen(false);
-    showToast(copy.purchasesComingSoon);
-  }, [copy.purchasesComingSoon, showToast]);
+    if (message) {
+      showToast(message);
+    }
+  }, [options, showToast]);
+
+  const handleRestore = useCallback(async () => {
+    const message = await options.onRestore();
+    setIsOpen(false);
+    if (message) {
+      showToast(message);
+    }
+  }, [options, showToast]);
 
   useEffect(
     () => () => {
@@ -65,7 +83,11 @@ export function useProUpsell(copy: ProUpsellCopy) {
         pricingNote={copy.pricingNote}
         continueLabel={copy.continueLabel}
         notNowLabel={copy.notNowLabel}
+        restoreLabel={copy.restoreLabel}
+        isBusy={options.isBusy}
+        showRestore={options.showRestore}
         onContinue={handleContinue}
+        onRestore={handleRestore}
         onClose={closeProUpsell}
       />
       {toastMessage && (
