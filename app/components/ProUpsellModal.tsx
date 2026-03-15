@@ -7,7 +7,11 @@ type ProUpsellModalProps = {
   pricingNote: string;
   continueLabel: string;
   notNowLabel: string;
+  restoreLabel?: string;
+  isBusy?: boolean;
+  showRestore?: boolean;
   onContinue: () => void;
+  onRestore?: () => void;
   onClose: () => void;
 };
 
@@ -18,7 +22,11 @@ export function ProUpsellModal({
   pricingNote,
   continueLabel,
   notNowLabel,
+  restoreLabel,
+  isBusy = false,
+  showRestore = false,
   onContinue,
+  onRestore,
   onClose,
 }: ProUpsellModalProps) {
   if (!open) {
@@ -38,6 +46,7 @@ export function ProUpsellModal({
           <button
             type="button"
             onClick={onClose}
+            disabled={isBusy}
             className="rounded-md border border-[var(--border)] px-2 py-1 text-sm leading-none text-[var(--muted)]"
             aria-label={notNowLabel}
           >
@@ -60,14 +69,26 @@ export function ProUpsellModal({
           <button
             type="button"
             onClick={onClose}
+            disabled={isBusy}
             className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)]"
           >
             {notNowLabel}
           </button>
+          {showRestore && onRestore && restoreLabel && (
+            <button
+              type="button"
+              onClick={onRestore}
+              disabled={isBusy}
+              className="rounded-md border border-[var(--border)] px-3 py-2 text-sm font-medium hover:bg-[color-mix(in_oklab,var(--text)_6%,transparent)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {restoreLabel}
+            </button>
+          )}
           <button
             type="button"
             onClick={onContinue}
-            className="rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 py-2 text-sm font-medium text-[var(--bg)]"
+            disabled={isBusy}
+            className="rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 py-2 text-sm font-medium text-[var(--bg)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {continueLabel}
           </button>

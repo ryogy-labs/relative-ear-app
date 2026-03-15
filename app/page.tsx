@@ -11,6 +11,13 @@ import {
 } from "./lib/questionIdentity";
 import { useProUpsell } from "./lib/useProUpsell";
 import {
+  getProPurchaseState,
+  initializeProPurchase,
+  purchasePro,
+  restoreProPurchases,
+  subscribeToProPurchaseState,
+} from "./lib/proPurchase";
+import {
   aggregateDailyRange,
   createEmptyStatsStore,
   incrementStatsForAnswer,
@@ -149,7 +156,16 @@ type UiText = {
   upsellOneTimePurchase: string;
   upsellContinue: string;
   upsellNotNow: string;
-  purchasesComingSoon: string;
+  restorePurchases: string;
+  purchasing: string;
+  purchaseSuccess: string;
+  purchaseAlreadyOwned: string;
+  purchaseCancelled: string;
+  purchaseFailed: string;
+  restoreSuccess: string;
+  restoreNothing: string;
+  restoreFailed: string;
+  purchaseUnavailable: string;
 };
 
 const I18N: Record<Language, UiText> = {
@@ -254,7 +270,16 @@ const I18N: Record<Language, UiText> = {
     upsellOneTimePurchase: "One-time purchase",
     upsellContinue: "Continue",
     upsellNotNow: "Not now",
-    purchasesComingSoon: "Purchases coming soon",
+    restorePurchases: "Restore purchase",
+    purchasing: "Purchasing...",
+    purchaseSuccess: "Pro unlocked.",
+    purchaseAlreadyOwned: "Pro is already active on this device.",
+    purchaseCancelled: "Purchase cancelled.",
+    purchaseFailed: "Purchase failed. Please try again.",
+    restoreSuccess: "Purchase restored.",
+    restoreNothing: "No prior Pro purchase was found.",
+    restoreFailed: "Restore failed. Please try again.",
+    purchaseUnavailable: "In-app purchase is only available in the iOS app.",
   },
   ja: {
     title: "相対音感トレーナー",
@@ -355,7 +380,16 @@ const I18N: Record<Language, UiText> = {
     upsellOneTimePurchase: "買い切りプラン",
     upsellContinue: "続ける",
     upsellNotNow: "今はしない",
-    purchasesComingSoon: "購入機能は近日公開予定です",
+    restorePurchases: "購入を復元",
+    purchasing: "購入中...",
+    purchaseSuccess: "Proが有効になりました。",
+    purchaseAlreadyOwned: "この端末ではすでにProが有効です。",
+    purchaseCancelled: "購入をキャンセルしました。",
+    purchaseFailed: "購入に失敗しました。もう一度お試しください。",
+    restoreSuccess: "購入を復元しました。",
+    restoreNothing: "復元できるPro購入が見つかりませんでした。",
+    restoreFailed: "復元に失敗しました。もう一度お試しください。",
+    purchaseUnavailable: "アプリ内課金はiOSアプリ内でのみ利用できます。",
   },
 };
 
@@ -698,17 +732,11 @@ export default function Home() {
     piano: "idle",
     guitar: "idle",
   });
+  const [isPurchaseBusy, setIsPurchaseBusy] = useState<boolean>(false);
+  const [canRestorePurchase, setCanRestorePurchase] = useState<boolean>(false);
 
   const t = I18N[language];
   const { ensureContext, playCorrect, playWrong } = useSfx(sfxEnabled);
-  const { openProUpsell, ProUpsellModalNode } = useProUpsell({
-    title: t.upsellTitle,
-    benefits: [t.upsellBenefitCustomPool, t.upsellBenefitHistory, t.upsellBenefitInstruments],
-    pricingNote: t.upsellOneTimePurchase,
-    continueLabel: t.upsellContinue,
-    notNowLabel: t.upsellNotNow,
-    purchasesComingSoon: t.purchasesComingSoon,
-  });
 
   const questionPool = useMemo(
     () => INTERVALS.filter((interval) => selectedIntervalIds.includes(interval.id)),
@@ -820,6 +848,29 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const unsubscribe = subscribeToProPurchaseState((purchaseState) => {
+      setIsPurchaseBusy(purchaseState.isBusy);
+      setCanRestorePurchase(purchaseState.canRestore);
+      setIsProState(purchaseState.isPro);
+      if (!purchaseState.isPro) {
+        setInstrument("synth");
+      }
+    });
+
+    void initializeProPurchase().then(() => {
+      const purchaseState = getProPurchaseState();
+      setIsPurchaseBusy(purchaseState.isBusy);
+      setCanRestorePurchase(purchaseState.canRestore);
+      setIsProState(purchaseState.isPro);
+      if (!purchaseState.isPro) {
+        setInstrument("synth");
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
     if (!IS_DEV_BUILD) {
       return;
     }
@@ -851,6 +902,58 @@ export default function Home() {
       cancelled = true;
     };
   }, [instrument]);
+
+  const handlePurchaseContinue = useCallback(async (): Promise<string | null> => {
+    const outcome = await purchasePro();
+    switch (outcome.status) {
+      case "success":
+        return t.purchaseSuccess;
+      case "already-owned":
+        return t.purchaseAlreadyOwned;
+      case "cancelled":
+        return t.purchaseCancelled;
+      case "unsupported":
+        return t.purchaseUnavailable;
+      case "failed":
+        return outcome.detail ? `${t.purchaseFailed} ${outcome.detail}` : t.purchaseFailed;
+      default:
+        return t.purchaseFailed;
+    }
+  }, [t.purchaseAlreadyOwned, t.purchaseCancelled, t.purchaseFailed, t.purchaseSuccess, t.purchaseUnavailable]);
+
+  const handleRestoreContinue = useCallback(async (): Promise<string | null> => {
+    const outcome = await restoreProPurchases();
+    switch (outcome.status) {
+      case "restored":
+      case "already-owned":
+        return t.restoreSuccess;
+      case "nothing-to-restore":
+        return t.restoreNothing;
+      case "unsupported":
+        return t.purchaseUnavailable;
+      case "failed":
+        return outcome.detail ? `${t.restoreFailed} ${outcome.detail}` : t.restoreFailed;
+      default:
+        return t.restoreFailed;
+    }
+  }, [t.purchaseUnavailable, t.restoreFailed, t.restoreNothing, t.restoreSuccess]);
+
+  const { openProUpsell, ProUpsellModalNode } = useProUpsell(
+    {
+      title: t.upsellTitle,
+      benefits: [t.upsellBenefitCustomPool, t.upsellBenefitHistory, t.upsellBenefitInstruments],
+      pricingNote: t.upsellOneTimePurchase,
+      continueLabel: isPurchaseBusy ? t.purchasing : t.upsellContinue,
+      notNowLabel: t.upsellNotNow,
+      restoreLabel: t.restorePurchases,
+    },
+    {
+      onContinue: handlePurchaseContinue,
+      onRestore: handleRestoreContinue,
+      showRestore: canRestorePurchase,
+      isBusy: isPurchaseBusy,
+    },
+  );
 
   const clearScheduledPlayback = useCallback(() => {
     scheduledPlaybackRef.current.forEach((timeoutId) => {
