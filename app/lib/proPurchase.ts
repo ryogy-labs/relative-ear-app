@@ -4,7 +4,7 @@ import { Capacitor } from "@capacitor/core";
 
 import { getIsPro, setIsPro } from "./entitlements";
 
-export const PRO_PRODUCT_ID = "com.ryogy.relativepitch.pro";
+export const PRO_PRODUCT_ID = "com.ryogy.relativepitch.pro.v2";
 const PLUGIN_WAIT_TIMEOUT_MS = 5000;
 const PURCHASE_WAIT_TIMEOUT_MS = 30000;
 
@@ -241,14 +241,14 @@ export async function purchasePro(): Promise<PurchaseOutcome> {
     return { status: "already-owned" };
   }
 
-  const product = getRegisteredProduct();
-  const offer = product?.getOffer();
-  if (!offer) {
-    return { status: "failed", detail: "Product offer unavailable" };
-  }
-
   setBusy(true);
   try {
+    const product = getRegisteredProduct();
+    const offer = product?.getOffer();
+    if (!offer) {
+      return { status: "failed", detail: "Product offer unavailable" };
+    }
+
     const error = await offer.order();
     if (error) {
       if (error.code === purchaseNamespace.ErrorCode.PAYMENT_CANCELLED) {
