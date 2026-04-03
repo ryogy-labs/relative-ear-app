@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.ryogy.relativepitch',
-  appName: 'Relative Pitch - Ear Training',
+  appName: 'Relative Pitch',
   webDir: 'out'
 };
 

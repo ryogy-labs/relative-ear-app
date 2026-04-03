@@ -29,9 +29,9 @@
 - Preset を選ぶと対応する interval pool に一括で切り替える
 - Practice 画面では回答後に keyboard を表示して基準音と出題音の位置関係を確認できる。回答済みで keyboard が見えている場合は対象音付近まで自動スクロールする
 - Stats タブでは全期間の成績を常に表示する。History は Day / Week / Month で集計し、Pro のみ閲覧可能とする
-- Settings タブでは言語、効果音、ノート長、音色、出題モード、方向、range、root mode、button size などを切り替える
+- Settings タブでは言語、効果音、ノート長、音色、出題モード、方向、range、root mode、button size などを切り替える。変更した設定は次回起動時にも復元する
 - Piano / Guitar 音色は Pro 限定で、非 Pro から選ぼうとするとアップセルを開く。サンプル読込中やフォールバック状態は UI に反映する
-- Pro 導線から購入または復元を実行できる。課金は iOS ネイティブ環境でのみ有効で、Web では購入不可メッセージを返す
+- Pro 導線から購入または復元を実行できる。課金は iOS ネイティブ環境でのみ有効で、Web では購入不可メッセージを返す。復元対象がない場合も UI を固めず結果を返す
 - 開発ビルドでは dev tools から Pro 強制切替と virtual today を使えるが、production では無効化する
 
 ## Data Model
@@ -39,7 +39,7 @@
 - `allTime` と `daily[dateKey]` はどちらも `StatsBucket = { totalAnswered, totalCorrect, byInterval }` を持ち、`byInterval` は interval id ごとの回答数と正解数を記録する
 - 統計保存先は Capacitor Preferences を優先し、利用できない環境では `localStorage` の `ryogyLabStatsV1` を使う
 - Pro entitlement は真偽値として永続化し、保存先は Capacitor Preferences を優先、Web フォールバックでは `localStorage` の `relative-ear.isPro` を使う
-- Root mode と instrument は Web では `localStorage` に保存し、次回起動時に復元する
+- 設定値 `language`, `selectedIntervalIds`, `maxRange`, `mode`, `directionSetting`, `noteLength`, `rootMode`, `instrument`, `buttonSize`, `sfxEnabled` は Capacitor Preferences を優先し、Web フォールバックでは `localStorage` の `relative-ear.settings.v1` に保存する
 - 開発ビルド時の virtual today 状態は `virtualTodayEnabled` と `virtualDateKey` で保存する
 - 現在ラウンド、回答状態、結果表示、選択中 tab、履歴アンカー日付、sample 読込状態、購入処理中フラグ、keyboard 表示状態はメモリ上の UI 状態であり永続化しない
 - AudioEngine 内の soundfont キャッシュ、現在 instrument、フォールバック文言、課金ストア接続状態もランタイム状態であり、再起動後は再初期化される
