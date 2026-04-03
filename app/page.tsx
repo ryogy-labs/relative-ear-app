@@ -26,6 +26,17 @@ import {
   type StatsStore,
 } from "./lib/statsStore";
 import {
+  DEFAULT_APP_SETTINGS,
+  loadAppSettings,
+  saveAppSettings,
+  type ButtonSizeKey,
+  type DirectionSetting,
+  type Language,
+  type NoteLengthKey,
+  type RootMode,
+  type TrainingMode,
+} from "./lib/settingsStore";
+import {
   formatDateKey,
   getTodayDate,
   getTodayKey,
@@ -39,14 +50,8 @@ type Interval = {
   semitones: number;
 };
 
-type TrainingMode = "melodic" | "harmony";
-type DirectionSetting = "ascending" | "descending" | "random";
 type ResolvedDirection = "ascending" | "descending";
 type PresetKey = "beginner" | "basic" | "jazzIntro";
-type Language = "en" | "ja";
-type NoteLengthKey = "short" | "medium" | "long";
-type RootMode = "random" | "fixedC";
-type ButtonSizeKey = "large" | "medium" | "small";
 type AppTab = "practice" | "stats" | "settings";
 type HistoryRange = "day" | "week" | "month";
 
@@ -669,34 +674,16 @@ function useSfx(enabled: boolean) {
 }
 
 export default function Home() {
-  const [language, setLanguage] = useState<Language>("en");
-  const [selectedIntervalIds, setSelectedIntervalIds] = useState<string[]>(PRESETS.basic);
-  const [maxRange, setMaxRange] = useState<12 | 24>(12);
-  const [mode, setMode] = useState<TrainingMode>("melodic");
-  const [directionSetting, setDirectionSetting] = useState<DirectionSetting>("random");
-  const [noteLength, setNoteLength] = useState<NoteLengthKey>("short");
-  const [rootMode, setRootMode] = useState<RootMode>(() => {
-    if (typeof window === "undefined") {
-      return "random";
-    }
-
-    const saved = window.localStorage.getItem("relative-ear.rootMode");
-    return saved === "fixedC" ? "fixedC" : "random";
-  });
-  const [instrument, setInstrument] = useState<InstrumentKey>(() => {
-    if (typeof window === "undefined") {
-      return "synth";
-    }
-
-    const saved = window.localStorage.getItem("relative-ear.instrument");
-    if (saved === "synth" || saved === "piano" || saved === "guitar") {
-      return saved;
-    }
-
-    return "synth";
-  });
-  const [buttonSize, setButtonSize] = useState<ButtonSizeKey>("large");
-  const [sfxEnabled, setSfxEnabled] = useState<boolean>(true);
+  const [language, setLanguage] = useState<Language>(DEFAULT_APP_SETTINGS.language);
+  const [selectedIntervalIds, setSelectedIntervalIds] = useState<string[]>(DEFAULT_APP_SETTINGS.selectedIntervalIds);
+  const [maxRange, setMaxRange] = useState<12 | 24>(DEFAULT_APP_SETTINGS.maxRange);
+  const [mode, setMode] = useState<TrainingMode>(DEFAULT_APP_SETTINGS.mode);
+  const [directionSetting, setDirectionSetting] = useState<DirectionSetting>(DEFAULT_APP_SETTINGS.directionSetting);
+  const [noteLength, setNoteLength] = useState<NoteLengthKey>(DEFAULT_APP_SETTINGS.noteLength);
+  const [rootMode, setRootMode] = useState<RootMode>(DEFAULT_APP_SETTINGS.rootMode);
+  const [instrument, setInstrument] = useState<InstrumentKey>(DEFAULT_APP_SETTINGS.instrument);
+  const [buttonSize, setButtonSize] = useState<ButtonSizeKey>(DEFAULT_APP_SETTINGS.buttonSize);
+  const [sfxEnabled, setSfxEnabled] = useState<boolean>(DEFAULT_APP_SETTINGS.sfxEnabled);
   const [activeTab, setActiveTab] = useState<AppTab>("practice");
   const [keyboardVisible, setKeyboardVisible] = useState<boolean>(true);
   const [isPro, setIsProState] = useState<boolean>(false);
@@ -734,6 +721,7 @@ export default function Home() {
   });
   const [isPurchaseBusy, setIsPurchaseBusy] = useState<boolean>(false);
   const [canRestorePurchase, setCanRestorePurchase] = useState<boolean>(false);
+  const [settingsLoaded, setSettingsLoaded] = useState<boolean>(false);
 
   const t = I18N[language];
   const { ensureContext, playCorrect, playWrong } = useSfx(sfxEnabled);
@@ -802,18 +790,68 @@ export default function Home() {
   }, [historyBounds.endDate, historyBounds.startDate, statsStore]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    window.localStorage.setItem("relative-ear.rootMode", rootMode);
-  }, [rootMode]);
+    let active = true;
+    const hydrateSettings = async () => {
+      const loaded = await loadAppSettings();
+      if (!active) {
+        return;
+      }
+
+      setLanguage(loaded.language);
+      setSelectedIntervalIds(loaded.selectedIntervalIds);
+      setMaxRange(loaded.maxRange);
+      setMode(loaded.mode);
+      setDirectionSetting(loaded.directionSetting);
+      setNoteLength(loaded.noteLength);
+      setRootMode(loaded.rootMode);
+      setInstrument(loaded.instrument);
+      setButtonSize(loaded.buttonSize);
+      setSfxEnabled(loaded.sfxEnabled);
+      setSettingsLoaded(true);
+    };
+    void hydrateSettings();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (!settingsLoaded) {
       return;
     }
-    window.localStorage.setItem("relative-ear.instrument", instrument);
-  }, [instrument]);
+
+    void saveAppSettings({
+      language,
+      selectedIntervalIds,
+      maxRange,
+      mode,
+      directionSetting,
+      noteLength,
+      rootMode,
+      instrument,
+      buttonSize,
+      sfxEnabled,
+    });
+  }, [
+    buttonSize,
+    directionSetting,
+    instrument,
+    language,
+    maxRange,
+    mode,
+    noteLength,
+    rootMode,
+    selectedIntervalIds,
+    settingsLoaded,
+    sfxEnabled,
+  ]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+    document.documentElement.lang = language;
+  }, [language]);
 
   useEffect(() => {
     let active = true;

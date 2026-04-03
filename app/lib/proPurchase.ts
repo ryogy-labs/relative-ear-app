@@ -7,6 +7,8 @@ import { getIsPro, setIsPro } from "./entitlements";
 export const PRO_PRODUCT_ID = "com.ryogy.relativepitch.pro.v2";
 const PLUGIN_WAIT_TIMEOUT_MS = 5000;
 const PURCHASE_WAIT_TIMEOUT_MS = 30000;
+const RESTORE_CALL_TIMEOUT_MS = 10000;
+const RESTORE_RESULT_WAIT_TIMEOUT_MS = 6000;
 
 export type PurchaseOutcomeStatus =
   | "success"
@@ -99,10 +101,10 @@ function getRegisteredProduct(): CdvPurchase.Product | undefined {
   );
 }
 
-async function waitForOwnership(): Promise<boolean> {
+async function waitForOwnership(timeoutMs = PURCHASE_WAIT_TIMEOUT_MS): Promise<boolean> {
   const startedAt = Date.now();
 
-  while (Date.now() - startedAt < PURCHASE_WAIT_TIMEOUT_MS) {
+  while (Date.now() - startedAt < timeoutMs) {
     if (await syncEntitlementFromStore()) {
       return true;
     }
@@ -110,6 +112,25 @@ async function waitForOwnership(): Promise<boolean> {
   }
 
   return syncEntitlementFromStore();
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error(timeoutMessage));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error: unknown) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
 }
 
 function configureStore(namespace: typeof CdvPurchase): void {
@@ -271,15 +292,31 @@ export async function restoreProPurchases(): Promise<PurchaseOutcome> {
     return { status: "unsupported" };
   }
 
+  if (await syncEntitlementFromStore()) {
+    return { status: "already-owned" };
+  }
+
   setBusy(true);
   try {
-    const error = await purchaseStore.restorePurchases();
+    const error = await withTimeout(
+      purchaseStore.restorePurchases(),
+      RESTORE_CALL_TIMEOUT_MS,
+      "Restore request timed out",
+    );
     if (error) {
       return { status: "failed", detail: error.message };
     }
 
-    const owned = await waitForOwnership();
+    await purchaseStore.update();
+    if (await syncEntitlementFromStore()) {
+      return { status: "restored" };
+    }
+
+    const owned = await waitForOwnership(RESTORE_RESULT_WAIT_TIMEOUT_MS);
     return owned ? { status: "restored" } : { status: "nothing-to-restore" };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Unknown restore error";
+    return { status: "failed", detail };
   } finally {
     setBusy(false);
   }
